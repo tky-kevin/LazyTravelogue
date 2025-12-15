@@ -1,251 +1,242 @@
-import { useState, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { GoogleLogin } from '@react-oauth/google';
+import { Map, List } from 'lucide-react';
 import Navbar from './components/Navbar';
 import ItineraryPanel from './components/ItineraryPanel';
 import MapPanel from './components/MapPanel';
 import AIAssistant from './components/AIAssistant';
+import { useItinerary } from './context/ItineraryContext';
 import { recalculateDayTimeline } from './utils/timeUtils';
 
 function App() {
-  const [selectedLocation, setSelectedLocation] = useState(null);
+  const {
+    user,
+    login,
+    currentItinerary,
+    updateItinerary,
+    activeDay,
+    setActiveDay,
+    selectedLocation,
+    setSelectedLocation
+  } = useItinerary();
 
-  // State: Focused Location (from Itinerary Click)
   const [focusedLocation, setFocusedLocation] = useState(null);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'map'
 
-  // State: Active Day
-  const [activeDay, setActiveDay] = useState('Day 1');
+  // 1. Data Preparation (Hooks must run unconditionally)
+  const daysData = currentItinerary?.days || { "Day 1": [] };
+  const startTimes = currentItinerary?.start_times || { "Day 1": "09:00" };
 
-  // State: Day Start Times (Default 09:00)
-  const [dayStartTimes, setDayStartTimes] = useState({
-    'Day 1': '09:00'
-  });
-
-  // State: Itinerary Data
-  // We keep the data plain (no JSX) for better state management
-  const [itineraryData, setItineraryData] = useState({
-    'Day 1': [
-      {
-        id: 'loc-1',
-        title: '起點：台北車站',
-        category: '交通',
-        lat: 25.0478,
-        lng: 121.5170,
-        transportMode: 'DRIVING',
-        stayDuration: 60, // minutes
-        durationValue: 0 // seconds from previous
-      },
-      {
-        id: 'loc-2',
-        title: '中正紀念堂自由廣場',
-        category: '觀光',
-        lat: 25.0354,
-        lng: 121.5197,
-        transportMode: 'WALKING',
-        stayDuration: 90,
-        durationValue: 0
-      },
-      {
-        id: 'loc-3',
-        title: '信義商圈逛街',
-        category: '購物',
-        lat: 25.0410,
-        lng: 121.5652,
-        transportMode: 'TRANSIT',
-        stayDuration: 120,
-        durationValue: 0
-      },
-      {
-        id: 'loc-4',
-        title: '鼎泰豐小籠包',
-        category: '餐飲',
-        lat: 25.0334, // Taipei 101 store approx
-        lng: 121.5639,
-        transportMode: 'DRIVING',
-        stayDuration: 90,
-        durationValue: 0
-      },
-    ]
-  });
-
-  // Effect: Recalculate whenever data or start times change
-  // Note: To avoid infinite loops with useEffect setting state, 
-  // we could just memoize the calculation for RENDERING, 
-  // but if we want to SAVE the times, we need state.
-  // For now, let's calculate on-the-fly for rendering in ItineraryPanel?
-  // No, Step 9 says "Display computed Arrival/Departure times on cards". 
-  // Let's wrap the setItineraryData to always recalculate.
-
-  // Actually, better: separate "Raw Data" vs "Calculated timeline".
-  // But to keep it simple, let's just make a specialized updater or recalculate in `itineraryData` state updates.
-  // Let's do the latter: Modify `setItineraryData` calls to include logic? No, too messy.
-  // Let's add a `useEffect` that updates `calculatedData` derived state?
-  // Or just modify the data in place when updates happen.
-
-  // Let's refine the Helper to be used in Render:
-  // We will pass the RAW itineraryData to ItineraryPanel.
-  // AND we will pass a `calculatedItinerary` object which is derived.
-
-  const calculatedItinerary = {
-    ...itineraryData,
-    [activeDay]: recalculateDayTimeline(itineraryData[activeDay], dayStartTimes[activeDay] || '09:00')
-  };
+  // Calculate Timeline
+  const calculatedItinerary = useMemo(() => {
+    return {
+      ...daysData,
+      [activeDay]: recalculateDayTimeline(daysData[activeDay] || [], startTimes[activeDay] || '09:00')
+    };
+  }, [daysData, startTimes, activeDay]);
 
 
-  // Action: Add Location to Active Day
+  // 2. Handlers (Adapting to Context API)
   const handleAddLocation = () => {
-    if (!selectedLocation) return;
+    if (!selectedLocation || !currentItinerary) return; // Guard clause
 
     const newItem = {
       id: `loc-${Date.now()}`,
       title: selectedLocation.name,
-      category: '觀光', // Default category
+      category: '觀光',
       lat: selectedLocation.lat,
       lng: selectedLocation.lng,
       description: selectedLocation.fullAddress,
       transportMode: 'DRIVING',
-      stayDuration: 60, // Default 1 hour
+      stayDuration: 60,
       durationValue: 0
     };
 
-    setItineraryData(prev => ({
-      ...prev,
-      [activeDay]: [...(prev[activeDay] || []), newItem]
-    }));
+    const currentDayItems = daysData[activeDay] || [];
+    const newItems = [...currentDayItems, newItem];
 
-    // Optional: Clear selection or give feedback
-    console.log(`Added ${selectedLocation.name} to ${activeDay}`);
-  };
-
-  // Action: Update Itinerary (Reorder)
-  const handleUpdateItinerary = (dayId, newItems) => {
-    setItineraryData(prev => ({
-      ...prev,
-      [dayId]: newItems
-    }));
-  };
-
-  // Action: Update Transport Mode
-  const handleUpdateTransportMode = (dayId, itemId, newMode) => {
-    setItineraryData(prev => {
-      const dayItems = prev[dayId] || [];
-      const updatedItems = dayItems.map(item =>
-        item.id === itemId ? { ...item, transportMode: newMode } : item
-      );
-      return {
-        ...prev,
-        [dayId]: updatedItems
-      };
-    });
-  };
-
-  // Action: Update Directions Info (Callback from Map)
-  const handleDirectionsFetched = useCallback((dayId, fromItemId, result) => {
-    // result contains { distance: {text, value}, duration: {text, value} }
-    setItineraryData(prev => {
-      const dayItems = prev[dayId] || [];
-      // Avoid infinite loop: check if data is actually different
-      const targetItem = dayItems.find(i => i.id === fromItemId);
-      if (targetItem && targetItem.duration === result.duration.text && targetItem.durationValue === result.duration.value) {
-        return prev;
+    // Update Context
+    updateItinerary(currentItinerary._id, {
+      days: {
+        ...daysData,
+        [activeDay]: newItems
       }
-
-      const updatedItems = dayItems.map(item =>
-        item.id === fromItemId ? {
-          ...item,
-          duration: result.duration.text,
-          durationValue: result.duration.value, // Store numeric seconds
-          distance: result.distance.text
-        } : item
-      );
-
-      return {
-        ...prev,
-        [dayId]: updatedItems
-      };
     });
-  }, []);
 
-  // Action: Update Stay Duration
+    console.log(`Added ${selectedLocation.name} to ${activeDay}`);
+    // Switch to list view on mobile to see the new item
+    setMobileView('list');
+  };
+
+  const handleUpdateItinerary = (dayId, newItems) => {
+    if (!currentItinerary) return;
+    updateItinerary(currentItinerary._id, {
+      days: {
+        ...daysData,
+        [dayId]: newItems
+      }
+    });
+  };
+
+  const handleUpdateTransportMode = (dayId, itemId, newMode) => {
+    if (!currentItinerary) return;
+    const dayItems = daysData[dayId] || [];
+    const updatedItems = dayItems.map(item =>
+      item.id === itemId ? { ...item, transportMode: newMode } : item
+    );
+
+    updateItinerary(currentItinerary._id, {
+      days: {
+        ...daysData,
+        [dayId]: updatedItems
+      }
+    });
+  };
+
   const handleUpdateStayDuration = (dayId, itemId, newDuration) => {
-    setItineraryData(prev => ({
-      ...prev,
-      [dayId]: prev[dayId].map(item =>
-        item.id === itemId ? { ...item, stayDuration: parseInt(newDuration) || 0 } : item
-      )
-    }));
+    if (!currentItinerary) return;
+    const dayItems = daysData[dayId] || [];
+    const updatedItems = dayItems.map(item =>
+      item.id === itemId ? { ...item, stayDuration: parseInt(newDuration) || 0 } : item
+    );
+
+    updateItinerary(currentItinerary._id, {
+      days: {
+        ...daysData,
+        [dayId]: updatedItems
+      }
+    });
   };
 
-  // Action: Update Start Time
   const handleUpdateStartTime = (newTime) => {
-    setDayStartTimes(prev => ({
-      ...prev,
-      [activeDay]: newTime
-    }));
+    if (!currentItinerary) return;
+    updateItinerary(currentItinerary._id, {
+      start_times: {
+        ...startTimes,
+        [activeDay]: newTime
+      }
+    });
   };
 
-  // Action: Handle Directions Error (Auto-fallback)
-  const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
-    if (status === 'ZERO_RESULTS' || status === 'NOT_FOUND') {
-      setItineraryData(prev => {
-        const dayItems = prev[dayId] || [];
-        const targetItem = dayItems.find(i => i.id === fromItemId);
+  // Map Callbacks
+  const handleDirectionsFetched = useCallback((dayId, fromItemId, result) => {
+    if (!currentItinerary) return;
 
-        // If Transit fails, fallback to Walking
-        if (targetItem && targetItem.transportMode === 'TRANSIT') {
-          console.log(`[Auto-Fallback] Switching ${fromItemId} from TRANSIT to WALKING due to ${status}`);
-          const updatedItems = dayItems.map(item =>
-            item.id === fromItemId ? { ...item, transportMode: 'WALKING' } : item
-          );
-          return { ...prev, [dayId]: updatedItems };
-        }
-        return prev;
-      });
+    const dayItems = daysData[dayId] || [];
+    const targetItem = dayItems.find(i => i.id === fromItemId);
+
+    if (targetItem && targetItem.duration === result.duration.text && targetItem.durationValue === result.duration.value) {
+      return;
     }
-  }, []);
+
+    const updatedItems = dayItems.map(item =>
+      item.id === fromItemId ? {
+        ...item,
+        duration: result.duration.text,
+        durationValue: result.duration.value,
+        distance: result.distance.text
+      } : item
+    );
+
+    updateItinerary(currentItinerary._id, {
+      days: {
+        ...daysData,
+        [dayId]: updatedItems
+      }
+    });
+
+  }, [daysData, currentItinerary, updateItinerary]);
+
+  const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
+    if (!currentItinerary) return;
+
+    if (status === 'ZERO_RESULTS' || status === 'NOT_FOUND') {
+      const dayItems = daysData[dayId] || [];
+      const targetItem = dayItems.find(i => i.id === fromItemId);
+
+      if (targetItem && targetItem.transportMode === 'TRANSIT') {
+        const updatedItems = dayItems.map(item =>
+          item.id === fromItemId ? { ...item, transportMode: 'WALKING' } : item
+        );
+
+        updateItinerary(currentItinerary._id, {
+          days: {
+            ...daysData,
+            [dayId]: updatedItems
+          }
+        });
+      }
+    }
+  }, [daysData, currentItinerary, updateItinerary]);
+
+  // 3. Render Login if no user
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
+        <h1 className="text-4xl font-serif font-bold text-gray-800 mb-8">Lazy Travelogue</h1>
+        <div className="p-8 bg-white rounded-xl shadow-lg text-center">
+          <p className="text-gray-600 mb-4">Please sign in to continue</p>
+          <GoogleLogin
+            onSuccess={login}
+            onError={() => console.log('Login Failed')}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Navbar onLocationSelect={setSelectedLocation} />
+    <div className="h-screen flex flex-col font-sans text-gray-900">
+      <Navbar onLocationSelect={(loc) => {
+        setSelectedLocation(loc);
+        setMobileView('map'); // Switch to map when searching to see the pin
+      }} />
 
-      <main style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: 'minmax(400px, 1fr) 2fr',
-        gap: '2rem',
-        padding: '0 3rem 2rem 3rem',
-        overflow: 'hidden'
-      }}>
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(400px,1fr)_2fr] gap-0 md:gap-8 px-0 md:px-12 pb-0 md:pb-8 overflow-hidden relative">
         {/* Left: Itinerary Panel */}
-        <div style={{ height: '100%', overflow: 'hidden' }}>
+        <div className={`h-full overflow-hidden ${mobileView === 'map' ? 'hidden md:block' : 'block'}`}>
           <ItineraryPanel
             activeDay={activeDay}
             onDayChange={setActiveDay}
-            itineraryData={calculatedItinerary} // Pass calculated data
-            startTime={dayStartTimes[activeDay] || '09:00'}
+            itineraryData={calculatedItinerary}
+            startTime={startTimes[activeDay] || '09:00'}
             onUpdateStartTime={handleUpdateStartTime}
             onUpdateItinerary={handleUpdateItinerary}
-            onLocationFocus={setFocusedLocation}
+            onLocationFocus={(loc) => {
+              setFocusedLocation(loc);
+              setMobileView('map');
+            }}
             onUpdateTransportMode={handleUpdateTransportMode}
             onUpdateStayDuration={handleUpdateStayDuration}
           />
         </div>
 
         {/* Right: Map Panel */}
-        <div style={{ height: '100%', position: 'relative' }}>
+        <div className={`h-full relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
           <MapPanel
             selectedLocation={selectedLocation}
             focusedLocation={focusedLocation}
-            itineraryData={itineraryData}
+            itineraryData={daysData} // Pass RAW data for map
             activeDay={activeDay}
             onAddLocation={handleAddLocation}
             onDirectionsFetched={handleDirectionsFetched}
             onDirectionsError={handleDirectionsError}
           />
         </div>
+
+        {/* Mobile Toggle FAB */}
+        <button
+          className="md:hidden fixed bottom-6 right-6 z-50 bg-primary text-white p-4 rounded-full shadow-2xl transition-transform active:scale-95 flex items-center justify-center"
+          onClick={() => setMobileView(prev => prev === 'list' ? 'map' : 'list')}
+          style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}
+        >
+          {mobileView === 'list' ? <Map size={24} /> : <List size={24} />}
+        </button>
       </main>
 
       <AIAssistant />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,226 +1,118 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, Share2, User, MapPin } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Search, Share2, User, LogOut } from 'lucide-react';
+import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
+import { useItinerary } from '../context/ItineraryContext';
+
+// Libraries needed for Google Maps
+const LIBRARIES = ['places', 'marker'];
 
 export default function Navbar({ onLocationSelect }) {
-    const [query, setQuery] = useState('');
-    const [results, setResults] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [showResults, setShowResults] = useState(false);
-    const searchRef = useRef(null);
+    const { user, logout } = useItinerary();
+    const [searchResult, setSearchResult] = useState(null);
+    const searchInputRef = useRef(null);
 
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (searchRef.current && !searchRef.current.contains(event.target)) {
-                setShowResults(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const { isLoaded } = useJsApiLoader({
+        id: 'google-map-script',
+        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+        libraries: LIBRARIES
+    });
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!query.trim()) return;
-
-        setIsLoading(true);
-        setShowResults(true);
-
-        try {
-            // Nominatim Search API
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            setResults(data);
-        } catch (error) {
-            console.error("Search failed:", error);
-        } finally {
-            setIsLoading(false);
-        }
+    const onLoad = (autocomplete) => {
+        setSearchResult(autocomplete);
     };
 
-    const handleSelectResult = (location) => {
-        // Pass extracted data to parent
-        onLocationSelect({
-            lat: parseFloat(location.lat),
-            lng: parseFloat(location.lon),
-            name: location.display_name.split(',')[0], // Simple name
-            fullAddress: location.display_name
-        });
-        setShowResults(false);
-        setQuery(location.display_name.split(',')[0]); // Update input
+    const onPlaceChanged = () => {
+        if (searchResult !== null) {
+            const place = searchResult.getPlace();
+
+            if (!place.geometry || !place.geometry.location) {
+                console.log("Returned place contains no geometry");
+                return;
+            }
+
+            onLocationSelect({
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng(),
+                name: place.name,
+                fullAddress: place.formatted_address,
+                placeId: place.place_id,
+                rating: place.rating,
+                user_ratings_total: place.user_ratings_total
+            });
+        } else {
+            console.log('Autocomplete is not loaded yet!');
+        }
     };
 
     return (
-        <nav style={{
-            height: '80px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 3rem',
-            backgroundColor: 'transparent',
-            position: 'sticky',
-            top: 0,
-            zIndex: 5000
-        }}>
+        <nav className="h-16 md:h-20 flex items-center justify-between px-4 md:px-12 bg-transparent sticky top-0 z-50">
             {/* Brand */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h1 className="font-serif" style={{
-                    fontSize: '1.5rem',
-                    fontWeight: 600,
-                    color: 'var(--pk-text-main)',
-                    letterSpacing: '-0.02em'
-                }}>
+            <div className="flex items-center gap-2 shrink-0">
+                <h1 className="font-serif text-xl md:text-2xl font-semibold text-gray-800 tracking-tight">
                     慵懶旅誌
                 </h1>
-                <span className="font-hand" style={{
-                    fontSize: '1.2rem',
-                    color: 'var(--pk-primary)',
-                    transform: 'rotate(-5deg)',
-                    marginTop: '5px'
-                }}>
+                <span className="hidden md:block font-hand text-xl text-primary -rotate-6 mt-1.5 transform">
                     Lazy Travelogue
                 </span>
             </div>
 
             {/* Search Bar Container */}
-            <div
-                ref={searchRef}
-                style={{
-                    position: 'relative',
-                    width: '320px',
-                }}
-            >
-                <form onSubmit={handleSearch} style={{ position: 'relative' }}>
-                    <Search size={18} style={{
-                        position: 'absolute',
-                        left: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: 'var(--pk-text-muted)'
-                    }} />
-                    <input
-                        type="text"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        placeholder="搜尋地點..."
-                        style={{
-                            width: '100%',
-                            padding: '10px 16px 10px 40px',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--pk-border)',
-                            background: 'var(--pk-surface-alt)',
-                            color: 'var(--pk-text-main)',
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: '0.95rem',
-                            outline: 'none',
-                            transition: 'all 0.2s ease'
-                        }}
-                        onFocus={() => {
-                            if (results.length > 0) setShowResults(true);
-                        }}
-                    />
-                </form>
-
-                {/* Results Dropdown */}
-                {showResults && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '110%',
-                        left: 0,
-                        width: '100%',
-                        maxHeight: '300px',
-                        overflowY: 'auto',
-                        backgroundColor: '#fff',
-                        borderRadius: 'var(--radius-md)',
-                        boxShadow: 'var(--shadow-float)',
-                        border: '1px solid var(--pk-border)',
-                        padding: '0.5rem 0',
-                        zIndex: 1000
-                    }}>
-                        {isLoading ? (
-                            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--pk-text-muted)' }}>
-                                搜尋中...
-                            </div>
-                        ) : results.length > 0 ? (
-                            results.map((item) => (
-                                <div
-                                    key={item.place_id}
-                                    onClick={() => handleSelectResult(item)}
-                                    style={{
-                                        padding: '8px 16px',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '0.5rem',
-                                        transition: 'background 0.1s'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <MapPin size={14} className="text-muted" style={{ flexShrink: 0 }} />
-                                    <div style={{ overflow: 'hidden' }}>
-                                        <div style={{ fontWeight: 500, fontSize: '0.9rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                            {item.display_name.split(',')[0]}
-                                        </div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--pk-text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                                            {item.display_name}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--pk-text-muted)' }}>
-                                找不到結果
-                            </div>
-                        )}
-
-                        {/* Attribution */}
-                        <div style={{
-                            borderTop: '1px solid var(--pk-border)',
-                            padding: '4px 8px',
-                            fontSize: '0.65rem',
-                            color: 'var(--pk-text-muted)',
-                            textAlign: 'center',
-                            marginTop: '4px'
-                        }}>
-                            Data © OpenStreetMap contributors
+            <div className="flex-1 max-w-sm mx-4 relative">
+                {isLoaded && (
+                    <Autocomplete
+                        onLoad={onLoad}
+                        onPlaceChanged={onPlaceChanged}
+                    >
+                        <div className="relative">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                placeholder="搜尋地點..."
+                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
+                            />
                         </div>
-                    </div>
+                    </Autocomplete>
                 )}
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <button style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '8px 16px',
-                    borderRadius: 'var(--radius-lg)',
-                    background: '#fff',
-                    border: '1px solid var(--pk-border)',
-                    color: 'var(--pk-text-main)',
-                    fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                    cursor: 'pointer'
-                }}>
+            <div className="flex items-center gap-2 md:gap-4 shrink-0">
+                <button className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm">
                     <Share2 size={18} />
                     <span>分享</span>
                 </button>
 
-                <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, var(--pk-primary), var(--pk-secondary))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    cursor: 'pointer'
-                }}>
-                    <User size={20} />
-                </div>
+                {user ? (
+                    <div className="flex items-center gap-3">
+                        <div className="relative group">
+                            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer">
+                                {user.picture ? (
+                                    <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white">
+                                        <User size={20} />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Simple Dropdown for Logout */}
+                            <div className="absolute right-0 top-12 w-32 bg-white rounded-lg shadow-xl border border-gray-100 py-1 hidden group-hover:block">
+                                <button
+                                    onClick={logout}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                    <LogOut size={14} />
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400">
+                        <User size={20} />
+                    </div>
+                )}
             </div>
         </nav>
     );

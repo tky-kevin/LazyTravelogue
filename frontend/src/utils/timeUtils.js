@@ -1,32 +1,54 @@
+import { format, differenceInCalendarDays, addMinutes } from 'date-fns';
+
 export const recalculateDayTimeline = (items, startTimeStr) => {
     if (!items || items.length === 0) return [];
 
-    let currentDate = new Date();
-    const [hours, minutes] = startTimeStr.split(':').map(Number);
-    currentDate.setHours(hours, minutes, 0, 0);
+    // Base Reference Date (Today)
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
 
-    return items.map((item, index) => {
-        let start = new Date(currentDate);
+    // Initial Start Time
+    const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
+    let currentCursor = new Date(baseDate);
+    currentCursor.setHours(startHours, startMinutes, 0, 0);
 
-        const stayMinutes = item.stayDuration || 60;
-        const end = new Date(start.getTime() + stayMinutes * 60000);
-
-        let travelSeconds = 0;
-        if (item.durationValue) {
-            travelSeconds = item.durationValue;
+    const formatTime = (date) => {
+        const timeStr = format(date, 'HH:mm');
+        const dayDiff = differenceInCalendarDays(date, baseDate);
+        if (dayDiff > 0) {
+            return `${timeStr} (+${dayDiff})`;
         }
+        return timeStr;
+    };
 
-        // Update global tracker for NEXT loop
-        currentDate = new Date(end.getTime() + travelSeconds * 1000);
+    return items.map((item) => {
+        // 1. Activity Start
+        const startDate = new Date(currentCursor);
 
-        const formatTime = (date) => {
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        };
+        // 2. Activity Duration
+        const stayMinutes = parseInt(item.stayDuration) || 60;
+        const endDate = addMinutes(startDate, stayMinutes);
+
+        // 3. Travel Time to Next
+        const travelSeconds = item.durationValue || 0;
+        // Round travel time to nearest minute to avoid "10:14:59" truncating to "10:14"
+        // Using Math.round ensures 14m 50s becomes 15m, adhering to human expectation
+        const travelMinutes = Math.round(travelSeconds / 60);
+        const travelEndDate = addMinutes(endDate, travelMinutes);
+
+        // Update Cursor for next item
+        currentCursor = travelEndDate;
 
         return {
             ...item,
-            calculatedStartTime: formatTime(start),
-            calculatedEndTime: formatTime(end)
+            startDate: startDate,
+            endDate: endDate,
+            travelStartDate: endDate,
+            travelEndDate: travelEndDate,
+            // Legacy/Display fields
+            calculatedStartTime: formatTime(startDate),
+            calculatedEndTime: formatTime(endDate),
+            calculatedTravelEndTime: formatTime(travelEndDate)
         };
     });
 };

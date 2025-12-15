@@ -1,146 +1,170 @@
 import { useState, forwardRef, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Reorder, motion, AnimatePresence } from 'framer-motion';
-import { Clock, MoreVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car } from 'lucide-react';
+import { Reorder, motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { Clock, MoreVertical, GripVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { recalculateDayTimeline } from '../utils/timeUtils';
 
-// Helper: Get Icon by Category
+// ... (Keep existing helpers) ...
+// Use GripVertical for drag handle icon in imports
+
+// Helper for Icons
 const getCategoryIcon = (category) => {
     switch (category) {
-        case 'Transport':
-        case '交通': return <Bus size={18} />;
-
-        case 'Sightseeing':
-        case '觀光': return <Camera size={18} />;
-
-        case 'Shopping':
-        case '購物': return <Coffee size={18} />;
-
-        case 'Dining':
-        case '餐飲': return <Hotel size={18} />;
-
-        default: return <MapPin size={18} />;
+        case 'food': return <Coffee size={20} />;
+        case 'hotel': return <Hotel size={20} />;
+        case 'scenic': return <Camera size={20} />;
+        case 'transport': return <Bus size={20} />;
+        default: return <MapPin size={20} />;
     }
 };
 
-// Helper: Get Icon by Mode
-const getTransportIcon = (mode, size = 14) => {
+const getTransportIcon = (mode) => {
     switch (mode) {
-        case 'WALKING': return <Footprints size={size} />;
-        case 'TRANSIT': return <Train size={size} />;
-        case 'DRIVING': default: return <Car size={size} />;
+        case 'DRIVING': return <Car size={14} />;
+        case 'TRANSIT': return <Bus size={14} />;
+        case 'WALKING': return <Footprints size={14} />;
+        default: return <Car size={14} />;
     }
-};
-
-
-// Mock Transport Calculator
-const getTransport = (from, to) => {
-    if (!from || !to) return null;
-    const isLongDistance = from.id === 'loc-1' && to.id === 'loc-3';
-    return {
-        mode: isLongDistance ? 'Subway' : 'Walk',
-        duration: isLongDistance ? '25 mins' : '10 mins'
-    };
 };
 
 // Custom Input for DatePicker
 const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
-    <button className="date-picker-custom-input" onClick={onClick} ref={ref}>
+    <button
+        className="flex items-center gap-2 px-3 py-2 bg-white border border-ink-border rounded-xl text-ink text-sm shadow-sm transition-colors hover:bg-surface-alt font-sans"
+        onClick={onClick}
+        ref={ref}
+    >
         <CalendarIcon size={16} className="text-primary" />
         <span>{value || '選擇日期'}</span>
     </button>
 ));
 
-const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging }) => {
+// New Component to handle Drag Controls individually
+const DraggableItineraryItem = ({ item, index, localItemsLength, draggedId, setDraggedId, handleDragEnd, onLocationFocus, onUpdateStayDuration, activeDay, onUpdateTransportMode }) => {
+    const dragControls = useDragControls();
+
+    return (
+        <Reorder.Item
+            value={item}
+            className="relative mb-4"
+            dragListener={false} // Disable default drag on whole item
+            dragControls={dragControls}
+            onDragStart={() => setDraggedId(item.id)}
+            onDragEnd={handleDragEnd}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, scale: 1, zIndex: 0 }}
+            whileDrag={{ scale: 1.05, zIndex: 999 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+        >
+            <div className={draggedId === item.id ? 'cursor-grabbing' : 'cursor-grab'}>
+                {/* Pass controls to card so it can render the handle */}
+                <ItineraryCard
+                    item={item}
+                    isDragging={draggedId === item.id}
+                    onClick={() => onLocationFocus && onLocationFocus(item)}
+                    onUpdateStayDuration={(id, val) => onUpdateStayDuration(activeDay, id, val)}
+                    dragControls={dragControls}
+                />
+            </div>
+
+            {index < localItemsLength - 1 && (
+                <div className={`transition-opacity duration-200 ${draggedId === item.id ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}>
+                    <TransportConnector
+                        fromItem={item}
+                        onChangeMode={(newMode) => onUpdateTransportMode(activeDay, item.id, newMode)}
+                    />
+                </div>
+            )}
+        </Reorder.Item>
+    );
+};
+
+// ... (Keep TransportConnector) ...
+
+// Modify ItineraryCard to accept dragControls and render handle
+const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragControls }) => {
+    // Generate a stable random rotation for natural feel
     const rotation = useRef(Math.random() * 2 - 1).current;
 
-    // Memoize animation objects to prevent recreation on every render
-    const animateDragging = useMemo(() => ({
+    // Animation Variants
+    const animateDragging = {
         scale: 1.05,
         opacity: 1,
         rotate: 2,
-        boxShadow: "0 15px 30px rgba(0,0,0,0.2)",
-    }), []);
+        zIndex: 999,
+        boxShadow: "0 15px 30px rgba(0,0,0,0.2)"
+    };
 
-    const animateNormal = useMemo(() => ({
+    const animateNormal = {
         scale: 1,
         opacity: 1,
         y: 0,
         rotate: rotation,
-        boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-    }), [rotation]);
+        zIndex: 0,
+        boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+    };
 
-    const whileHoverAnim = useMemo(() => ({
-        scale: 1.03,
+    const whileHoverAnim = {
+        scale: 1.02,
         rotate: rotation + 1
-    }), [rotation]);
+    };
 
-    const whileTapAnim = useMemo(() => ({
+    const whileTapAnim = {
         scale: 0.98,
         rotate: rotation - 2
-    }), [rotation]);
+    };
 
     return (
-        <div style={{ display: 'flex', gap: '1rem', position: 'relative' }}>
-            {/* Timeline Left - Hide when dragging */}
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                minWidth: '60px',
-                opacity: isDragging ? 0 : 1,
-                transition: 'opacity 0.2s'
-            }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--pk-text-main)' }}>
+        <div className="flex gap-4 relative">
+            {/* Timeline ... (Keep existing) */}
+            <div
+                className={`flex flex-col items-center min-w-[60px] transition-opacity duration-200 ${isDragging ? 'opacity-0' : 'opacity-100'}`}
+            >
+                <span className="text-sm font-bold text-ink">
                     {item.calculatedStartTime?.split(' ')[0] || '--:--'}
                 </span>
-
-                {/* Vertical Line */}
-                <div style={{ flex: 1, width: '2px', background: 'var(--pk-border)', margin: '4px 0', position: 'relative' }}>
-                    {/* Optional: Add dot or marker */}
-                </div>
-
-                <span style={{ fontSize: '0.75rem', color: 'var(--pk-text-muted)' }}>
+                <div className="flex-1 w-[2px] bg-ink-border my-1 relative" />
+                <span className="text-xs text-ink-muted">
                     {item.calculatedEndTime?.split(' ')[0] || '--:--'}
                 </span>
             </div>
 
             {/* Card Content */}
             <motion.div
-                className="itinerary-card"
+                className="relative flex gap-4 p-4 bg-surface rounded-[2px] border border-ink-border shadow-paper flex-1"
                 initial={{ opacity: 0, y: 20 }}
                 animate={isDragging ? animateDragging : animateNormal}
                 whileHover={whileHoverAnim}
                 whileTap={whileTapAnim}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                style={{
-                    cursor: isDragging ? 'grabbing' : 'grab',
-                    flex: 1,
-                    background: 'var(--pk-surface)',
-                    transition: 'box-shadow 0.2s ease'
-                }}
                 onClick={onClick}
             >
-                <div className="card-icon-wrapper">
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-full bg-surface-alt text-primary flex items-center justify-center shrink-0">
                     {getCategoryIcon(item.category)}
                 </div>
 
-                <div className="card-content">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--pk-text-main)', margin: 0 }}>{item.title}</h3>
-                        <MoreVertical size={16} color="var(--pk-text-muted)" style={{ cursor: 'pointer' }} />
+                <div className="flex-1">
+                    <div className="flex justify-between mb-2">
+                        <h3 className="text-base font-semibold text-ink m-0 pr-6">{item.title}</h3>
+                        {/* Drag Handle */}
+                        <div
+                            className="absolute right-3 top-3 p-2 text-ink-muted cursor-grab touch-none"
+                            onPointerDown={(e) => dragControls.start(e)}
+                        >
+                            <GripVertical size={18} />
+                        </div>
                     </div>
-
-                    {/* Meta & Duration Control */}
-                    <div className="card-meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span className="card-tag">
+                    {/* ... Rest of content ... */}
+                    <div className="flex justify-between items-center text-sm text-ink-muted">
+                        <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-xl text-xs font-medium">
                             {item.category}
                         </span>
-
-                        {/* Stay Duration Input */}
+                        {/* Duration Input */}
                         <div
-                            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--pk-text-muted)' }}
+                            className="flex items-center gap-1 text-xs text-ink-muted cursor-default"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <Clock size={12} />
@@ -149,26 +173,18 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging }) => {
                                 type="number"
                                 value={item.stayDuration || 60}
                                 onChange={(e) => onUpdateStayDuration && onUpdateStayDuration(item.id, e.target.value)}
-                                style={{
-                                    width: '40px',
-                                    border: '1px solid var(--pk-border)',
-                                    borderRadius: '4px',
-                                    padding: '2px',
-                                    textAlign: 'center',
-                                    fontSize: '0.8rem',
-                                    background: 'var(--pk-surface)'
-                                }}
+                                className="w-10 border border-ink-border rounded p-0.5 text-center text-xs bg-surface"
                             />
                             <span>分</span>
                         </div>
                     </div>
                 </div>
-
                 <div className="tape-strip"></div>
             </motion.div>
         </div>
     );
 };
+
 
 // Memoize to prevent re-render when other items are dragged
 const MemoizedItineraryCard = memo(ItineraryCard);
@@ -185,25 +201,24 @@ const TransportConnector = ({ fromItem, onChangeMode }) => {
     };
 
     return (
-        <div className="transport-connector" style={{ paddingLeft: '28px' }}> {/* Indent to align with card content */}
-            <div className="connector-line" style={{ marginBottom: '4px' }} />
+        <div className="pl-7 py-2 flex flex-col items-center relative text-ink-muted z-0">
+            <div className="w-[2px] h-5 border-l-2 border-dashed border-ink-border mb-1" />
             <div
-                className="connector-badge"
+                className="flex items-center gap-1 text-xs bg-surface-alt px-2.5 py-0.5 rounded-xl cursor-pointer hover:bg-gray-200 transition-colors"
                 onClick={cycleMode}
-                style={{ cursor: 'pointer' }}
                 title="點擊切換交通方式"
             >
                 {getTransportIcon(currentMode)}
-                <span style={{ fontSize: '0.7rem' }}>
+                <span className="text-[0.7rem]">
                     {currentMode === 'DRIVING' ? '開車' : currentMode === 'WALKING' ? '步行' : '大眾運輸'}
                 </span>
                 {fromItem.duration && (
-                    <span style={{ fontSize: '0.7rem', opacity: 0.7, marginLeft: '4px' }}>
+                    <span className="text-[0.7rem] opacity-70 ml-1">
                         ({fromItem.duration})
                     </span>
                 )}
             </div>
-            <div className="connector-line" style={{ marginTop: '4px' }} />
+            <div className="w-[2px] h-5 border-l-2 border-dashed border-ink-border mt-1" />
         </div>
     );
 };
@@ -214,31 +229,26 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
     const [days, setDays] = useState([]);
 
     // Local State for Drag & Drop Performance
-    // We initialize it from props, but update it locally during interaction
     const [localItems, setLocalItems] = useState([]);
     const [draggedId, setDraggedId] = useState(null);
 
-    // Sync props to local state (only when not dragging to avoid conflict)
+    // Sync props to local state
     useEffect(() => {
         if (!draggedId) {
             setLocalItems(itineraryData[activeDay] || []);
         }
     }, [itineraryData, activeDay, draggedId]);
 
-    // Handle Local Reorder (Fast Update) - Memoized for stable reference
+    // Handle Local Reorder
     const handleReorder = useCallback((newItems) => {
-        // During drag: ONLY update order, do NOT recalculate timeline
-        // This prevents re-render conflicts that cause jump effect
         setLocalItems(newItems);
     }, []);
 
-    // Handle Drag End (Commit to Parent/Map) - Memoized for stable reference
+    // Handle Drag End
     const handleDragEnd = useCallback(() => {
         setDraggedId(null);
-        // NOW recalculate timeline after drag is complete
         const reCalculated = recalculateDayTimeline(localItems, startTime || '09:00');
         setLocalItems(reCalculated);
-        // Commit the final order and calculated state to parent
         onUpdateItinerary(activeDay, reCalculated);
     }, [localItems, startTime, onUpdateItinerary, activeDay]);
 
@@ -258,7 +268,7 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
         const target = scrollTarget.current;
 
         if (Math.abs(target - current) > 1) {
-            container.scrollLeft = current + (target - current) * 0.3; // Reduced inertia
+            container.scrollLeft = current + (target - current) * 0.3;
             requestAnimationFrame(smoothScroll);
         } else {
             isAnimating.current = false;
@@ -277,7 +287,7 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
         const target = timelineScrollTarget.current;
 
         if (Math.abs(target - current) > 1) {
-            container.scrollTop = current + (target - current) * 0.3; // Reduced inertia
+            container.scrollTop = current + (target - current) * 0.3;
             requestAnimationFrame(smoothTimelineScroll);
         } else {
             isTimelineAnimating.current = false;
@@ -309,7 +319,6 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                 };
             });
             setDays(newDays);
-            // We don't reset activeDay here to avoid jumping if props update
         }
     }, [startDate, endDate]);
 
@@ -369,16 +378,16 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
     }, [days, localItems, activeDay]);
 
     return (
-        <div className="itinerary-panel">
+        <div className="h-full flex flex-col bg-transparent overflow-hidden">
             {/* Header */}
-            <div className="itinerary-header">
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <h2 className="font-serif" style={{ fontSize: '1.25rem', lineHeight: 1 }}>行程表</h2>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--pk-text-muted)' }}>
+            <div className="py-4 bg-transparent flex justify-between items-center">
+                <div className="flex flex-col">
+                    <h2 className="font-serif text-xl leading-none">行程表</h2>
+                    <span className="text-xs text-ink-muted">
                         {days.length} 天旅程
                     </span>
                 </div>
-                <div style={{ position: 'relative', zIndex: 20 }}>
+                <div className="relative z-20">
                     <DatePicker
                         selectsRange={true}
                         startDate={startDate}
@@ -393,7 +402,7 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
             {/* Days List */}
             <div
                 ref={daysListRef}
-                className="days-list no-scrollbar"
+                className="flex gap-3 px-4 py-3 bg-transparent overflow-x-auto no-scrollbar"
                 style={{
                     maskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
                     WebkitMaskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
@@ -408,10 +417,15 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                     <button
                         key={day.id}
                         onClick={() => onDayChange(day.id)}
-                        className={`day-button ${activeDay === day.id ? 'active' : 'inactive'}`}
+                        className={`
+                            px-3 py-1.5 rounded-xl flex flex-col items-center min-w-[70px] cursor-pointer transition-all duration-200 shrink-0
+                            ${activeDay === day.id
+                                ? 'bg-teal-50 border border-primary text-primary'
+                                : 'bg-slate-100 border border-transparent text-ink-muted hover:bg-slate-200'}
+                        `}
                     >
-                        <span style={{ fontSize: '1.25rem', fontWeight: 800 }}>{day.label}</span>
-                        <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>{day.dateStr}</span>
+                        <span className="text-xl font-bold">{day.label}</span>
+                        <span className="text-xs opacity-80">{day.dateStr}</span>
                     </button>
                 ))}
             </div>
@@ -419,7 +433,7 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
             {/* Timeline */}
             <div
                 ref={timelineRef}
-                className="itinerary-timeline"
+                className="flex-1 overflow-y-auto py-6 bg-transparent"
                 style={{
                     maskImage: isAtBottom
                         ? 'linear-gradient(to bottom, transparent, black 40px, black 100%)'
@@ -433,33 +447,20 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                     setIsAtBottom((scrollHeight - clientHeight - scrollTop) <= 5);
                 }}
             >
-                <div style={{ maxWidth: '400px', margin: '0 auto' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '1.5rem', borderBottom: '2px solid var(--pk-secondary)', paddingBottom: '0.5rem' }}>
-                        <h2 className="font-serif" style={{
-                            fontSize: '1.75rem',
-                            color: 'var(--pk-text-main)',
-                            margin: 0
-                        }}>
+                <div className="max-w-[400px] mx-auto">
+                    <div className="flex items-center justify-center gap-4 mb-6 border-b-2 border-secondary pb-2">
+                        <h2 className="font-serif text-3xl text-ink m-0">
                             {days.find(d => d.id === activeDay)?.label || activeDay}
                         </h2>
 
                         {/* Start Time Picker */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--pk-surface-alt)', padding: '4px 8px', borderRadius: '8px' }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--pk-text-muted)', fontWeight: 600 }}>出發</span>
+                        <div className="flex items-center gap-1 bg-surface-alt px-2 py-1 rounded-lg">
+                            <span className="text-xs text-ink-muted font-semibold">出發</span>
                             <input
                                 type="time"
                                 value={startTime || '09:00'}
                                 onChange={(e) => onUpdateStartTime(e.target.value)}
-                                style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: '0.9rem',
-                                    fontWeight: 600,
-                                    color: 'var(--pk-text-main)',
-                                    outline: 'none',
-                                    cursor: 'pointer'
-                                }}
+                                className="border-none bg-transparent font-sans text-sm font-semibold text-ink outline-none cursor-pointer"
                             />
                         </div>
                     </div>
@@ -471,47 +472,22 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                                 values={localItems}
                                 onReorder={handleReorder}
                                 layoutScroll
-                                style={{ listStyle: 'none', padding: 0 }}
+                                className="list-none p-0"
                             >
                                 {localItems.map((item, index) => (
-                                    <Reorder.Item
+                                    <DraggableItineraryItem
                                         key={item.id}
-                                        value={item}
-                                        style={{ position: 'relative', marginBottom: '1rem' }}
-                                        onDragStart={() => setDraggedId(item.id)}
-                                        onDragEnd={handleDragEnd}
-                                        // No 'layout' prop - prevents jump effect during drag
-                                        // Reorder.Group handles reordering animations internally
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1, scale: 1, zIndex: 0 }}
-                                        whileDrag={{ scale: 1.05, zIndex: 999 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                    >
-                                        <div
-                                            style={{ cursor: draggedId === item.id ? 'grabbing' : 'grab' }}
-                                        >
-                                            <MemoizedItineraryCard
-                                                item={item}
-                                                isDragging={draggedId === item.id}
-                                                onClick={() => onLocationFocus && onLocationFocus(item)}
-                                                onUpdateStayDuration={(id, val) => onUpdateStayDuration(activeDay, id, val)}
-                                            />
-                                        </div>
-
-                                        {index < localItems.length - 1 && (
-                                            <div style={{
-                                                pointerEvents: draggedId ? 'none' : 'auto',
-                                                opacity: draggedId === item.id ? 0 : 1,
-                                                transition: 'opacity 0.2s'
-                                            }}>
-                                                <TransportConnector
-                                                    fromItem={item}
-                                                    onChangeMode={(newMode) => onUpdateTransportMode(activeDay, item.id, newMode)}
-                                                />
-                                            </div>
-                                        )}
-                                    </Reorder.Item>
+                                        item={item}
+                                        index={index}
+                                        localItemsLength={localItems.length}
+                                        draggedId={draggedId}
+                                        setDraggedId={setDraggedId}
+                                        handleDragEnd={handleDragEnd}
+                                        onLocationFocus={onLocationFocus}
+                                        onUpdateStayDuration={onUpdateStayDuration}
+                                        activeDay={activeDay}
+                                        onUpdateTransportMode={onUpdateTransportMode}
+                                    />
                                 ))}
                             </Reorder.Group>
                         ) : (
@@ -520,28 +496,16 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                style={{
-                                    textAlign: 'center',
-                                    padding: '2rem',
-                                    color: 'var(--pk-text-muted)',
-                                    fontStyle: 'italic'
-                                }}
+                                className="text-center p-8 text-ink-muted italic"
                             >
                                 這一天還沒有計畫。<br />
-                                <span style={{ fontSize: '0.8rem' }}>點擊地圖添加景點！</span>
+                                <span className="text-xs">點擊地圖添加景點！</span>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
                     {localItems.length > 0 && (
-                        <div style={{
-                            marginTop: '2rem',
-                            textAlign: 'center',
-                            fontFamily: 'var(--font-hand)',
-                            fontSize: '1.5rem',
-                            color: 'var(--pk-text-muted)',
-                            transform: 'rotate(-2deg)'
-                        }}>
+                        <div className="mt-8 text-center font-hand text-2xl text-ink-muted -rotate-2">
                             本日行程結束 ~
                         </div>
                     )}
