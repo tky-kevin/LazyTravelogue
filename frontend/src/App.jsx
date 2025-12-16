@@ -1,11 +1,13 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Map, List } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ItineraryPanel from './components/ItineraryPanel';
 import MapPanel from './components/MapPanel';
 import AIAssistant from './components/AIAssistant';
 import { useItinerary } from './context/ItineraryContext';
+import { useItineraryActions } from './hooks/useItineraryActions';
 import { recalculateDayTimeline } from './utils/timeUtils';
 
 function App() {
@@ -13,167 +15,70 @@ function App() {
     user,
     login,
     currentItinerary,
-    updateItinerary,
     activeDay,
     setActiveDay,
     selectedLocation,
     setSelectedLocation
   } = useItinerary();
 
+  const {
+    handleAddLocation,
+    handleUpdateItinerary,
+    handleUpdateTransportMode,
+    handleUpdateStayDuration,
+    handleUpdateStartTime,
+    handleDirectionsFetched,
+    handleDirectionsError
+  } = useItineraryActions();
+
   const [focusedLocation, setFocusedLocation] = useState(null);
   const [mobileView, setMobileView] = useState('list'); // 'list' | 'map'
 
-  // 1. Data Preparation (Hooks must run unconditionally)
-  const daysData = currentItinerary?.days || { "Day 1": [] };
+  // 1. Data Preparation
+  // We assume currentItinerary.days is always an Array due to backend standardization.
+  // We need to transform this Array into the format expected by the legacy components (Object { "Day 1": [...] })
+  // until those components are also refactored, OR we keep this transformation simple.
+
+  const daysData = useMemo(() => {
+    if (!currentItinerary?.days) return { "Day 1": [] };
+
+    // Transform List[Day] -> Object { "id": [activities] } for easy access by day ID/Date
+    const map = {};
+    if (Array.isArray(currentItinerary.days)) {
+      currentItinerary.days.forEach(d => {
+        map[d.id] = d.activities || [];
+        // We also map by "Day X" string if that's what activeDay uses, 
+        // essentially satisfying both ID and legacy "Day N" usage if they differ.
+        if (d.date) map[d.date] = d.activities || [];
+      });
+    } else {
+      // Fallback (Should typically not be hit if we are strict, but good for safety during migration)
+      return currentItinerary.days;
+    }
+    return map;
+  }, [currentItinerary]);
+
   const startTimes = currentItinerary?.start_times || { "Day 1": "09:00" };
 
   // Calculate Timeline
   const calculatedItinerary = useMemo(() => {
+    // If activeDay is not found in daysData, default to empty array
+    const currentActivities = daysData[activeDay] || [];
+    const startTime = startTimes[activeDay] || '09:00';
+
     return {
       ...daysData,
-      [activeDay]: recalculateDayTimeline(daysData[activeDay] || [], startTimes[activeDay] || '09:00')
+      [activeDay]: recalculateDayTimeline(currentActivities, startTime)
     };
   }, [daysData, startTimes, activeDay]);
 
-
-  // 2. Handlers (Adapting to Context API)
-  const handleAddLocation = () => {
-    if (!selectedLocation || !currentItinerary) return; // Guard clause
-
-    const newItem = {
-      id: `loc-${Date.now()}`,
-      title: selectedLocation.name,
-      category: '觀光',
-      lat: selectedLocation.lat,
-      lng: selectedLocation.lng,
-      description: selectedLocation.fullAddress,
-      transportMode: 'DRIVING',
-      stayDuration: 60,
-      durationValue: 0
-    };
-
-    const currentDayItems = daysData[activeDay] || [];
-    const newItems = [...currentDayItems, newItem];
-
-    // Update Context
-    updateItinerary(currentItinerary._id, {
-      days: {
-        ...daysData,
-        [activeDay]: newItems
-      }
-    });
-
-    console.log(`Added ${selectedLocation.name} to ${activeDay}`);
-    // Switch to list view on mobile to see the new item
-    setMobileView('list');
-  };
-
-  const handleUpdateItinerary = (dayId, newItems) => {
-    if (!currentItinerary) return;
-    updateItinerary(currentItinerary._id, {
-      days: {
-        ...daysData,
-        [dayId]: newItems
-      }
-    });
-  };
-
-  const handleUpdateTransportMode = (dayId, itemId, newMode) => {
-    if (!currentItinerary) return;
-    const dayItems = daysData[dayId] || [];
-    const updatedItems = dayItems.map(item =>
-      item.id === itemId ? { ...item, transportMode: newMode } : item
-    );
-
-    updateItinerary(currentItinerary._id, {
-      days: {
-        ...daysData,
-        [dayId]: updatedItems
-      }
-    });
-  };
-
-  const handleUpdateStayDuration = (dayId, itemId, newDuration) => {
-    if (!currentItinerary) return;
-    const dayItems = daysData[dayId] || [];
-    const updatedItems = dayItems.map(item =>
-      item.id === itemId ? { ...item, stayDuration: parseInt(newDuration) || 0 } : item
-    );
-
-    updateItinerary(currentItinerary._id, {
-      days: {
-        ...daysData,
-        [dayId]: updatedItems
-      }
-    });
-  };
-
-  const handleUpdateStartTime = (newTime) => {
-    if (!currentItinerary) return;
-    updateItinerary(currentItinerary._id, {
-      start_times: {
-        ...startTimes,
-        [activeDay]: newTime
-      }
-    });
-  };
-
-  // Map Callbacks
-  const handleDirectionsFetched = useCallback((dayId, fromItemId, result) => {
-    if (!currentItinerary) return;
-
-    const dayItems = daysData[dayId] || [];
-    const targetItem = dayItems.find(i => i.id === fromItemId);
-
-    if (targetItem && targetItem.duration === result.duration.text && targetItem.durationValue === result.duration.value) {
-      return;
-    }
-
-    const updatedItems = dayItems.map(item =>
-      item.id === fromItemId ? {
-        ...item,
-        duration: result.duration.text,
-        durationValue: result.duration.value,
-        distance: result.distance.text
-      } : item
-    );
-
-    updateItinerary(currentItinerary._id, {
-      days: {
-        ...daysData,
-        [dayId]: updatedItems
-      }
-    });
-
-  }, [daysData, currentItinerary, updateItinerary]);
-
-  const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
-    if (!currentItinerary) return;
-
-    if (status === 'ZERO_RESULTS' || status === 'NOT_FOUND') {
-      const dayItems = daysData[dayId] || [];
-      const targetItem = dayItems.find(i => i.id === fromItemId);
-
-      if (targetItem && targetItem.transportMode === 'TRANSIT') {
-        const updatedItems = dayItems.map(item =>
-          item.id === fromItemId ? { ...item, transportMode: 'WALKING' } : item
-        );
-
-        updateItinerary(currentItinerary._id, {
-          days: {
-            ...daysData,
-            [dayId]: updatedItems
-          }
-        });
-      }
-    }
-  }, [daysData, currentItinerary, updateItinerary]);
 
   // 3. Render Login if no user
   if (!user) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
-        <h1 className="text-4xl font-serif font-bold text-gray-800 mb-8">Lazy Travelogue</h1>
+        <Toaster position="top-center" />
+        <h1 className="text-4xl font-serif font-bold text-gray-800 mb-8">LazyTravelogue</h1>
         <div className="p-8 bg-white rounded-xl shadow-lg text-center">
           <p className="text-gray-600 mb-4">Please sign in to continue</p>
           <GoogleLogin
@@ -187,6 +92,7 @@ function App() {
 
   return (
     <div className="h-screen flex flex-col font-sans text-gray-900">
+      <Toaster position="top-right" />
       <Navbar onLocationSelect={(loc) => {
         setSelectedLocation(loc);
         setMobileView('map'); // Switch to map when searching to see the pin
@@ -218,7 +124,7 @@ function App() {
             focusedLocation={focusedLocation}
             itineraryData={daysData} // Pass RAW data for map
             activeDay={activeDay}
-            onAddLocation={handleAddLocation}
+            onAddLocation={() => handleAddLocation(setMobileView)}
             onDirectionsFetched={handleDirectionsFetched}
             onDirectionsError={handleDirectionsError}
           />

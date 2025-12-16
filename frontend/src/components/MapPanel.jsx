@@ -80,7 +80,7 @@ const getStepOptions = (mode, color) => {
     } else {
         return {
             ...baseOptions,
-            strokeOpacity: 0.7,
+            strokeOpacity: 1.0,
             zIndex: 1
         };
     }
@@ -266,6 +266,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
             if (selectedLocation) {
                 mapRef.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
                 mapRef.current.setZoom(15);
+                setInfoWindowOpen('search-result'); // Auto-open info window
             } else if (focusedLocation) {
                 mapRef.current.panTo({ lat: parseFloat(focusedLocation.lat), lng: parseFloat(focusedLocation.lng) });
                 mapRef.current.setZoom(16);
@@ -340,7 +341,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                         color="#ef4444"
                         onClick={() => setInfoWindowOpen('search-result')}
                     >
-                        {(infoWindowOpen === 'search-result' || infoWindowOpen === null) && (
+                        {(infoWindowOpen === 'search-result') && (
                             <InfoWindow
                                 onCloseClick={() => setInfoWindowOpen(null)}
                                 position={{ lat: selectedLocation.lat, lng: selectedLocation.lng }}

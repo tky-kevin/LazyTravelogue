@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import client from '../api/client';
 import { googleLogout } from '@react-oauth/google';
+import toast from 'react-hot-toast';
 
 const ItineraryContext = createContext();
 
@@ -16,40 +17,38 @@ export function ItineraryProvider({ children }) {
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    // Initial Load / Auth Check (Mock for now or check token)
-    useEffect(() => {
-        const token = localStorage.getItem('access_token');
-        const userData = localStorage.getItem('user_data');
-        if (token && userData) {
-            setUser(JSON.parse(userData));
-            fetchItineraries();
-        }
-    }, []);
+
 
     const login = async (googleResponse) => {
         try {
             setLoading(true);
             const res = await client.post('/auth/google', { credential: googleResponse.credential });
-            const { access_token, user: userData } = res.data;
+            // Backend sets Cookie "access_token"
+            const { user: userData } = res.data;
 
-            localStorage.setItem('access_token', access_token);
             localStorage.setItem('user_data', JSON.stringify(userData));
             setUser(userData);
             await fetchItineraries();
+            toast.success('Successfully logged in!');
         } catch (error) {
             console.error("Login Failed", error);
+            toast.error('Login failed. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const logout = () => {
+    const logout = async () => {
+        try {
+            await client.post('/auth/logout'); // Tell backend to clear cookie
+        } catch (e) { console.error("Logout error", e); }
+
         googleLogout();
-        localStorage.removeItem('access_token');
         localStorage.removeItem('user_data');
         setUser(null);
         setItineraries([]);
         setCurrentItinerary(null);
+        toast.success('Logged out');
     };
 
     const fetchItineraries = useCallback(async () => {
@@ -60,37 +59,38 @@ export function ItineraryProvider({ children }) {
                 // Select first one by default for MVP
                 setCurrentItinerary(res.data[0]);
             } else {
-                // Create default if none
-                createItinerary({ title: "My First Trip", days: { "Day 1": [] }, start_times: { "Day 1": "09:00" } });
-                // If no itinerary, create a default one
+                // Create default if none with NEW SCHEMA
                 await createItinerary({
-                    title: "My Trip",
-                    // Missing dates?
+                    title: "My First Trip",
+                    days: [{ id: "day-1", date: "Day 1", activities: [] }]
                 });
             }
         } catch (error) {
             console.error("Fetch Itineraries Failed", error);
+            toast.error('Failed to load itineraries');
         }
     }, []);
 
     const createItinerary = async (itineraryData = {}) => {
         try {
             const today = new Date().toISOString();
+            // Default payload with NEW SCHEMA
             const payload = {
                 title: "My Awesome Trip",
                 start_date: today,
                 end_date: today,
-                days: { "Day 1": [] },
-                start_times: { "Day 1": "09:00" },
+                days: [{ id: "day-1", date: "Day 1", activities: [] }],
                 ...itineraryData
             };
 
             const res = await client.post('/api/itineraries', payload);
             setItineraries([...itineraries, res.data]);
             setCurrentItinerary(res.data);
+            toast.success('New itinerary created');
             return res.data;
         } catch (error) {
             console.error("Create Failed", error);
+            toast.error('Failed to create itinerary');
         }
     };
 
@@ -108,8 +108,40 @@ export function ItineraryProvider({ children }) {
             await client.put(`/api/itineraries/${id}`, updatedItinerary);
         } catch (error) {
             console.error("Update Failed", error);
+            toast.error('Failed to save changes');
+            // Revert? (Not implemented for simplicity)
         }
     };
+
+    const patchItinerary = async (id, updates) => {
+        if (!currentItinerary) return;
+
+        // Optimistic Update locally
+        // We need to carefully merge "updates" into currentItinerary
+        // Since "updates" might be { days: [...] } or { title: "..." }
+        const updatedItinerary = { ...currentItinerary, ...updates };
+        setCurrentItinerary(updatedItinerary);
+
+        try {
+            await client.patch(`/api/itineraries/${id}`, updates);
+        } catch (error) {
+            console.error("Patch Failed", error);
+            toast.error('Failed to save changes (Partial)');
+        }
+    };
+
+    // Initial Load / Auth Check
+    // Use a ref to track if we've already started fetching to prevent strict mode double-tap
+    const initialFetchDone = useRef(false);
+
+    useEffect(() => {
+        const userData = localStorage.getItem('user_data');
+        if (userData && !initialFetchDone.current) {
+            initialFetchDone.current = true;
+            setUser(JSON.parse(userData));
+            fetchItineraries();
+        }
+    }, [fetchItineraries]);
 
     const value = {
         user,
@@ -122,6 +154,7 @@ export function ItineraryProvider({ children }) {
         logout,
         createItinerary,
         updateItinerary,
+        patchItinerary,
         setCurrentItinerary,
         setActiveDay,
         setSelectedLocation

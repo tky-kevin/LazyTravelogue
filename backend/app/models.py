@@ -1,6 +1,10 @@
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, EmailStr, BeforeValidator, ConfigDict
+from typing import Optional, List, Dict, Any, Annotated
 from datetime import datetime
+from bson import ObjectId
+
+# Helper for Pydantic v2 + MongoDB ObjectId
+PyObjectId = Annotated[str, BeforeValidator(str)]
 
 class User(BaseModel):
     google_id: str
@@ -26,25 +30,46 @@ class Location(BaseModel):
     duration: Optional[str] = None
     description: Optional[str] = None
 
+class Day(BaseModel):
+    id: str = Field(default_factory=lambda: str(ObjectId()))
+    date: str # YYYY-MM-DD or "Day X"
+    activities: List[Location] = []
+
 class Itinerary(BaseModel):
-    id: Optional[str] = Field(None, alias="_id")
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
     user_id: Optional[str] = None
     title: str = "My Trip"
-    days: Dict[str, List[Location]] # "Day 1": [...]
-    start_times: Dict[str, str] # "Day 1": "09:00"
+    
+    # Changed from Dict to List for better ordering/handling
+    days: List[Day] = []
+    
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    
+    start_times: Dict[str, str] = {} # Backward compatibility or separate handling
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        populate_by_name = True
-        json_schema_extra = {
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
             "example": {
                 "title": "Taipei Trip",
-                "days": {
-                    "Day 1": []
-                },
-                "start_times": {
-                    "Day 1": "09:00"
-                }
+                "days": [
+                    {
+                        "id": "day-1",
+                        "date": "2024-01-01",
+                        "activities": []
+                    }
+                ]
             }
         }
+    )
+
+class ItineraryUpdate(BaseModel):
+    title: Optional[str] = None
+    days: Optional[List[Day]] = None
+    start_times: Optional[Dict[str, str]] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None

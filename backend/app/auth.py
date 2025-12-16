@@ -9,6 +9,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
@@ -18,6 +19,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 def verify_token(token: str):
     try:
@@ -30,19 +32,27 @@ def verify_token(token: str):
     except PyJWTError:
         return None
 
-from fastapi import HTTPException, Header
-async def get_current_user(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Missing Authorization Header")
+
+from fastapi import HTTPException, Header, Cookie, Request
+
+
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    if not token:
+        # Fallback to Header for testing or mobile clients if needed
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            try:
+                scheme, token_val = auth_header.split()
+                if scheme.lower() == 'bearer':
+                    token = token_val
+            except ValueError:
+                pass
     
-    try:
-        scheme, token = authorization.split()
-        if scheme.lower() != 'bearer':
-            raise HTTPException(status_code=401, detail="Invalid Authentication Scheme")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
             
-        token_data = verify_token(token)
-        if not token_data:
-             raise HTTPException(status_code=401, detail="Invalid Token")
-        return token_data
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid Authorization Header Format")
+    token_data = verify_token(token)
+    if not token_data:
+            raise HTTPException(status_code=401, detail="Invalid Token")
+    return token_data
