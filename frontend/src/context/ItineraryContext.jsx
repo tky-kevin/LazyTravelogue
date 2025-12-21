@@ -16,6 +16,7 @@ export function ItineraryProvider({ children }) {
     const [activeDay, setActiveDay] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [showPocket, setShowPocket] = useState(false);
 
     // 1. Definition Phase (Functions)
 
@@ -225,7 +226,9 @@ export function ItineraryProvider({ children }) {
         replaceItinerary,
         setCurrentItinerary,
         setActiveDay,
-        setSelectedLocation
+        setSelectedLocation,
+        showPocket,
+        setShowPocket
     };
 
     return (

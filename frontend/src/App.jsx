@@ -31,7 +31,9 @@ function App() {
     handleDirectionsFetched,
     handleDirectionsError,
     handleReorderDays,
-    handleRemoveItem
+    handleRemoveItem,
+    handleAddToPocket,
+    handleMoveFromPocketToDay
   } = useItineraryActions();
 
   const [focusedLocation, setFocusedLocation] = useState(null);
@@ -76,9 +78,9 @@ function App() {
 
     return {
       ...daysData,
-      [activeDay]: recalculateDayTimeline(currentActivities, startTime)
+      [activeDay]: recalculateDayTimeline(currentActivities, startTime, activeDayLabel)
     };
-  }, [daysData, startTimes, activeDay]);
+  }, [daysData, startTimes, activeDay, activeDayLabel]);
 
 
   // Auto-switch to map view when a location is selected (for mobile)
@@ -108,9 +110,16 @@ function App() {
   return (
     <div className="h-screen flex flex-col font-sans text-gray-900">
       <Toaster position="top-right" />
-      <Navbar onLocationSelect={(loc) => {
-        setSelectedLocation(loc);
-      }} />
+      <Navbar
+        onLocationSelect={(loc) => {
+          setSelectedLocation(loc);
+        }}
+        pocketList={currentItinerary?.pocket_list || []}
+        onMoveFromPocket={handleMoveFromPocketToDay}
+        onRemoveItem={handleRemoveItem}
+        activeDay={activeDay}
+        activeDayLabel={activeDayLabel}
+      />
 
       <main className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(400px,1fr)_2fr] gap-0 md:gap-8 px-0 md:px-12 pb-0 md:pb-8 overflow-hidden relative">
         {/* Left: Itinerary Panel */}
@@ -137,6 +146,8 @@ function App() {
             }}
             onUpdateTransportMode={handleUpdateTransportMode}
             onUpdateStayDuration={handleUpdateStayDuration}
+            pocketList={currentItinerary?.pocket_list || []}
+            onMoveFromPocket={handleMoveFromPocketToDay}
           />
         </div>
 
@@ -145,12 +156,13 @@ function App() {
           <MapPanel
             selectedLocation={selectedLocation}
             focusedLocation={focusedLocation}
-            itineraryData={daysData} // Pass RAW data for map
+            itineraryData={calculatedItinerary}
             days={currentItinerary?.days || []}
             activeDay={activeDay}
             activeDayLabel={activeDayLabel}
             onLocationSelect={setSelectedLocation}
             onAddLocation={() => handleAddLocation(setMobileView)}
+            onAddToPocket={handleAddToPocket}
             onDirectionsFetched={handleDirectionsFetched}
             onDirectionsError={handleDirectionsError}
           />

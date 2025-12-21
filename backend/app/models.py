@@ -29,6 +29,8 @@ class Location(BaseModel):
     distance: Optional[str] = None
     duration: Optional[str] = None
     description: Optional[str] = None
+    transitDetails: Optional[List[Dict[str, Any]]] = None
+    alternatives: Optional[List[Dict[str, Any]]] = None
 
 class Day(BaseModel):
     id: str = Field(default_factory=lambda: str(ObjectId()))
@@ -45,6 +47,9 @@ class Itinerary(BaseModel):
     
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    
+    # Pocket List for unassigned locations
+    pocket_list: List[Location] = []
     
     start_times: Dict[str, str] = {} # Backward compatibility or separate handling
     
@@ -73,6 +78,7 @@ class ItineraryUpdate(BaseModel):
     start_times: Optional[Dict[str, str]] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    pocket_list: Optional[List[Location]] = None
 
 class KnowledgeArticle(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)

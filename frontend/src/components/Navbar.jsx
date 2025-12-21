@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Share2, User, LogOut, X, Clock, History, Map as MapIcon, Plus, Trash2, ChevronDown, Check } from 'lucide-react';
+import { Search, Share2, User, LogOut, X, Clock, History, Map as MapIcon, Plus, Trash2, ChevronDown, Check, Bookmark, Coffee, Hotel, Camera, MapPin } from 'lucide-react';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
 import { categorizePlace } from '../utils/placeUtils';
@@ -7,7 +7,17 @@ import { categorizePlace } from '../utils/placeUtils';
 // Libraries needed for Google Maps
 const LIBRARIES = ['places', 'marker'];
 
-export default function Navbar({ onLocationSelect }) {
+// Helper for Icons (shared or moved here for Navbar usage)
+const getCategoryIcon = (category) => {
+    switch (category) {
+        case 'food': return <Coffee size={18} />;
+        case 'hotel': return <Hotel size={18} />;
+        case 'scenic': return <Camera size={18} />;
+        default: return <MapPin size={18} />;
+    }
+};
+
+export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPocket, onRemoveItem, activeDay, activeDayLabel }) {
     const {
         user,
         logout,
@@ -15,7 +25,9 @@ export default function Navbar({ onLocationSelect }) {
         currentItinerary,
         setCurrentItinerary,
         createItinerary,
-        deleteItinerary
+        deleteItinerary,
+        showPocket,
+        setShowPocket
     } = useItinerary();
     const [searchResult, setSearchResult] = useState(null);
     const searchInputRef = useRef(null);
@@ -82,6 +94,9 @@ export default function Navbar({ onLocationSelect }) {
     const [isTripsOpen, setIsTripsOpen] = useState(false);
     const menuRef = useRef(null);
     const tripsRef = useRef(null);
+    const pocketRef = useRef(null);
+
+
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -91,12 +106,15 @@ export default function Navbar({ onLocationSelect }) {
             if (tripsRef.current && !tripsRef.current.contains(event.target)) {
                 setIsTripsOpen(false);
             }
+            if (pocketRef.current && !pocketRef.current.contains(event.target)) {
+                setShowPocket(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [setShowPocket]);
 
     const onPlaceChanged = () => {
         if (searchResult !== null) {
@@ -293,6 +311,76 @@ export default function Navbar({ onLocationSelect }) {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+
+
+                {user && (
+                    <div className="relative" ref={pocketRef}>
+                        <button
+                            onClick={() => setShowPocket(!showPocket)}
+                            className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl border transition-all shadow-sm text-sm font-medium ${showPocket ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+                            title="口袋名單"
+                        >
+                            <Bookmark size={18} />
+                            <span className="hidden sm:inline">口袋名單</span>
+                            {pocketList.length > 0 && (
+                                <span className={`flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold ${showPocket ? 'bg-primary text-white' : 'bg-primary text-white'}`}>
+                                    {pocketList.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {showPocket && (
+                            <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200 flex flex-col max-h-[450px]">
+                                <div className="px-5 py-2 border-b border-gray-50">
+                                    <h3 className="text-sm font-bold text-gray-800">口袋名單</h3>
+                                    <p className="text-[10px] text-gray-400">目前收藏的地點</p>
+                                </div>
+                                <div className="overflow-y-auto px-2 py-2 flex-1">
+                                    {pocketList.length > 0 ? (
+                                        pocketList.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="group p-3 hover:bg-gray-50 rounded-lg transition-colors border-b border-gray-50 last:border-0"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-1.5 bg-gray-100 rounded-md text-gray-500 shrink-0">
+                                                        {getCategoryIcon(item.category)}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="text-xs font-bold text-gray-700 truncate">{item.title}</h4>
+                                                        <p className="text-[10px] text-gray-400 truncate mt-0.5">{item.description}</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            onClick={() => onMoveFromPocket(activeDay, item)}
+                                                            className="p-1.5 text-primary hover:bg-primary/10 rounded-full transition-all"
+                                                            title={`加入 ${activeDayLabel || activeDay}`}
+                                                        >
+                                                            <Plus size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => onRemoveItem && onRemoveItem('pocket', item.id)}
+                                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                                            title="從口袋移除"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="py-8 text-center opacity-30">
+                                            <Bookmark size={32} className="mx-auto mb-2" />
+                                            <p className="text-xs italic">口袋裡目前沒有景點</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}

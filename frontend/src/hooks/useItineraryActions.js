@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useItinerary } from '../context/ItineraryContext';
+import toast from 'react-hot-toast';
 
 export function useItineraryActions() {
     const {
@@ -54,6 +55,34 @@ export function useItineraryActions() {
 
         console.log(`Added ${selectedLocation.name} to ${activeDay}`);
         if (mobileViewSetter) mobileViewSetter('list');
+    };
+
+    const handleAddToPocket = () => {
+        if (!selectedLocation || !currentItinerary) return;
+
+        const newItem = {
+            id: `pocket-${Date.now()}`,
+            title: selectedLocation.name,
+            category: selectedLocation.category || '景點',
+            lat: selectedLocation.lat,
+            lng: selectedLocation.lng,
+            description: selectedLocation.fullAddress,
+            transportMode: 'DRIVING',
+            stayDuration: 60,
+            durationValue: 0
+        };
+
+        const updatedPocket = [...(currentItinerary.pocket_list || []), newItem];
+        const updatePayload = { pocket_list: updatedPocket };
+
+        if (patchItinerary) {
+            patchItinerary(currentItinerary._id || currentItinerary.id, updatePayload);
+        } else {
+            updateItinerary(currentItinerary._id || currentItinerary.id, updatePayload);
+        }
+
+        toast.success(`已加入口袋名單: ${selectedLocation.name}`);
+        setSelectedLocation(null);
     };
 
     const handleUpdateItinerary = (dayId, newItems, overridePayload = null) => {
@@ -122,21 +151,33 @@ export function useItineraryActions() {
         const currentItems = getDayItems(dayId);
         const targetItem = currentItems.find(i => i.id === fromItemId);
 
-        if (targetItem && targetItem.duration === result.duration.text && targetItem.durationValue === result.duration.value) {
-            return;
-        }
+        const currentTransitDetails = targetItem?.transitDetails || [];
+        const currentAlternatives = targetItem?.alternatives || [];
+        const nextTransitDetails = result.transitDetails || [];
+        const nextAlternatives = result.alternatives || [];
+
+        // Check if data actually changed to avoid infinite loop
+        const dataChanged = !targetItem ||
+            targetItem.duration !== result.duration.text ||
+            targetItem.durationValue !== result.duration.value ||
+            JSON.stringify(currentTransitDetails) !== JSON.stringify(nextTransitDetails) ||
+            JSON.stringify(currentAlternatives) !== JSON.stringify(nextAlternatives);
+
+        if (!dataChanged) return;
 
         const updatedItems = currentItems.map(item =>
             item.id === fromItemId ? {
                 ...item,
                 duration: result.duration.text,
                 durationValue: result.duration.value,
-                distance: result.distance.text
+                distance: result.distance.text,
+                transitDetails: nextTransitDetails,
+                alternatives: nextAlternatives
             } : item
         );
 
         handleUpdateItinerary(dayId, updatedItems);
-    }, [currentItinerary, patchItinerary, updateItinerary]); // Dependencies
+    }, [currentItinerary, patchItinerary, updateItinerary, getDayItems]);
 
     const handleUpdateDateRange = useCallback((newStartDate, newEndDate) => {
         if (!currentItinerary) return;
@@ -182,21 +223,10 @@ export function useItineraryActions() {
     }, [currentItinerary, patchItinerary, updateItinerary]);
 
     const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
-        if (!currentItinerary) return;
-
-        if (status === 'ZERO_RESULTS' || status === 'NOT_FOUND') {
-            const currentItems = getDayItems(dayId);
-            const targetItem = currentItems.find(i => i.id === fromItemId);
-
-            if (targetItem && targetItem.transportMode === 'TRANSIT') {
-                const updatedItems = currentItems.map(item =>
-                    item.id === fromItemId ? { ...item, transportMode: 'WALKING' } : item
-                );
-                handleUpdateItinerary(dayId, updatedItems);
-                handleUpdateItinerary(dayId, updatedItems);
-            }
-        }
-    }, [currentItinerary, patchItinerary, updateItinerary]);
+        // We no longer automatically switch modes on error.
+        // Instead, the UI will reflect that no data was found.
+        console.warn(`Directions error for ${fromItemId} on ${dayId}: ${status}`);
+    }, []);
 
     const handleReorderDays = useCallback((newDayOrder) => {
         // newDayOrder is an array of IDs/Keys like ["Day 2", "Day 1", "Day 3"]
@@ -228,12 +258,47 @@ export function useItineraryActions() {
 
     }, [currentItinerary, patchItinerary, updateItinerary]);
 
+    const handleMoveFromPocketToDay = useCallback((dayId, item) => {
+        if (!currentItinerary) return;
+
+        // 1. Add to Day
+        const currentDays = currentItinerary.days || [];
+        const newItem = { ...item, id: `loc-${Date.now()}` };
+        const updatedDays = currentDays.map(day => {
+            if (day.id === dayId || day.date === dayId) {
+                return { ...day, activities: [...(day.activities || []), newItem] };
+            }
+            return day;
+        });
+
+        // 2. Remove from Pocket
+        const updatedPocket = (currentItinerary.pocket_list || []).filter(i => i.id !== item.id);
+
+        const payload = {
+            days: updatedDays,
+            pocket_list: updatedPocket
+        };
+
+        if (patchItinerary) patchItinerary(currentItinerary._id || currentItinerary.id, payload);
+        else updateItinerary(currentItinerary._id || currentItinerary.id, payload);
+    }, [currentItinerary, patchItinerary, updateItinerary]);
+
     const handleRemoveItem = useCallback((dayId, itemId) => {
         if (!currentItinerary) return;
+
+        // If dayId is 'pocket', we remove from pocket list
+        if (dayId === 'pocket') {
+            const updatedPocket = (currentItinerary.pocket_list || []).filter(item => item.id !== itemId);
+            const payload = { pocket_list: updatedPocket };
+            if (patchItinerary) patchItinerary(currentItinerary._id || currentItinerary.id, payload);
+            else updateItinerary(currentItinerary._id || currentItinerary.id, payload);
+            return;
+        }
+
         const currentItems = getDayItems(dayId);
         const updatedItems = currentItems.filter(item => item.id !== itemId);
         handleUpdateItinerary(dayId, updatedItems);
-    }, [currentItinerary, handleUpdateItinerary]);
+    }, [currentItinerary, handleUpdateItinerary, patchItinerary, updateItinerary]);
 
     return {
         handleAddLocation,
@@ -244,8 +309,9 @@ export function useItineraryActions() {
         handleUpdateDateRange,
         handleDirectionsFetched,
         handleDirectionsError,
-        handleDirectionsError,
         handleReorderDays,
-        handleRemoveItem
+        handleRemoveItem,
+        handleAddToPocket,
+        handleMoveFromPocketToDay
     };
 }

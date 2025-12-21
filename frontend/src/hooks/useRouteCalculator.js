@@ -7,12 +7,22 @@ export function useRouteCalculator() {
     // Data cache for instant sync access if needed (optional, promises cover it) but good for persistence
     const dataCache = useRef({});
 
-    const getRoute = useCallback((origin, destination, mode) => {
+    const getRoute = useCallback((origin, destination, mode, departureTime = null) => {
         if (!window.google || !window.google.maps) {
             return Promise.reject("Google Maps API not loaded");
         }
 
-        const cacheKey = `${origin.lat},${origin.lng}-${destination.lat},${destination.lng}-${mode}`;
+        // Validate departureTime: must be a valid Date and shouldn't be in the past for Transit
+        let validDepartureTime = departureTime;
+        if (!(validDepartureTime instanceof Date) || isNaN(validDepartureTime.getTime())) {
+            validDepartureTime = new Date();
+        } else if (validDepartureTime < new Date()) {
+            // If the calculated time is in the past (e.g., planning for 'today' but 09:00 has passed),
+            // use 'now' to ensure we get results.
+            validDepartureTime = new Date();
+        }
+
+        const cacheKey = `${origin.lat},${origin.lng}-${destination.lat},${destination.lng}-${mode}-${validDepartureTime.getTime()}`;
 
         // Return cached result if available
         if (dataCache.current[cacheKey]) {
@@ -36,8 +46,14 @@ export function useRouteCalculator() {
                         mode === 'WALKING' ? window.google.maps.TravelMode.WALKING :
                             window.google.maps.TravelMode.DRIVING,
                     transitOptions: mode === 'TRANSIT' ? {
+                        departureTime: validDepartureTime,
                         routingPreference: window.google.maps.TransitRoutePreference.FEWER_TRANSFERS
-                    } : undefined
+                    } : undefined,
+                    drivingOptions: (mode === 'DRIVING') ? {
+                        departureTime: validDepartureTime,
+                        trafficModel: 'bestguess'
+                    } : undefined,
+                    provideRouteAlternatives: mode === 'TRANSIT'
                 },
                 (result, status) => {
                     if (status === window.google.maps.DirectionsStatus.OK) {

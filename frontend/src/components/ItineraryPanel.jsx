@@ -1,8 +1,10 @@
 import { useState, forwardRef, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Reorder, motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Clock, MoreVertical, GripVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car, Trash2 } from 'lucide-react';
+import { Clock, MoreVertical, GripVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car, Trash2, Bookmark, X, Plus, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import DatePicker from 'react-datepicker';
+import toast from 'react-hot-toast';
 import { format, addDays, differenceInDays } from 'date-fns';
+import { useItinerary } from '../context/ItineraryContext';
 import { recalculateDayTimeline } from '../utils/timeUtils';
 
 // ... (Keep existing helpers) ...
@@ -202,9 +204,141 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
 // Memoize to prevent re-render when other items are dragged
 const MemoizedItineraryCard = memo(ItineraryCard);
 
+const TransitDetails = ({ details, alternatives, primaryDurationValue }) => {
+    const hasData = (details && details.length > 0) || (alternatives && alternatives.length > 0);
+
+    if (!hasData) {
+        return (
+            <div className="mt-2 w-full max-w-[360px] bg-white/95 backdrop-blur-md border border-ink-border rounded-xl p-6 shadow-xl text-center">
+                <p className="text-[14px] text-ink-muted italic font-medium">正在獲取或查無大眾運輸詳細資訊。</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="mt-2 w-full max-w-[400px] bg-white/95 backdrop-blur-md border border-ink-border rounded-xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4 duration-500 overflow-hidden">
+            {details && details.length > 0 && (
+                <div className="space-y-6 relative">
+                    <p className="text-[13px] font-black text-primary mb-5 uppercase tracking-[0.15em] border-b-2 border-primary/10 pb-2 flex justify-between items-center">
+                        <span>目前建議路線</span>
+                        <Info size={16} className="text-primary/70" />
+                    </p>
+
+                    {/* Visual Timeline Path - carefully constrained */}
+                    <div className="absolute left-[24px] top-[60px] bottom-[30px] w-[2px] border-l-2 border-dashed border-ink-border/40 z-0" />
+
+                    {details.map((step, idx) => (
+                        <div key={idx} className="flex gap-5 items-start relative z-10">
+                            {/* Icon Indicator */}
+                            <div className="shrink-0">
+                                {step.type === 'TRANSIT' ? (
+                                    <div
+                                        className="w-12 h-12 rounded-[18px] flex items-center justify-center text-white font-black text-[14px] shadow-lg ring-4 ring-white"
+                                        style={{ backgroundColor: step.color || '#3b82f6' }}
+                                    >
+                                        {step.line}
+                                    </div>
+                                ) : (
+                                    <div className="w-12 h-12 rounded-[18px] bg-surface-alt border border-ink-border/50 flex items-center justify-center text-ink-muted shadow-md ring-4 ring-white">
+                                        <Footprints size={24} />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0 pt-0.5">
+                                {step.type === 'TRANSIT' ? (
+                                    <>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex flex-col">
+                                                <span className="text-[16px] font-black text-ink leading-tight">{step.vehicle} {step.line}</span>
+                                                <span className="text-[12px] text-ink-muted font-black mt-1">往 {step.arrivalStop}</span>
+                                            </div>
+                                            <div className="flex flex-col items-end shrink-0">
+                                                <span className="text-[16px] text-primary font-black">{step.departureTime}</span>
+                                                <span className="text-[10px] text-primary/70 font-black uppercase">發車</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[12px] text-ink-muted bg-surface-alt p-2.5 rounded-xl border border-ink-border/20 shadow-sm">
+                                            <MapPin size={14} className="text-primary/60" />
+                                            <span className="truncate font-bold">{step.departureStop}</span>
+                                        </div>
+                                        {step.numStops > 0 && (
+                                            <div className="text-[11px] text-primary font-black mt-2.5 flex items-center gap-2 bg-primary/5 px-3.5 py-1.5 rounded-full w-fit border border-primary/10">
+                                                <Clock size={12} />
+                                                <span>途經 {step.numStops} 站 • {step.arrivalTime} 抵達</span>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="py-2.5">
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <span className="text-[15px] font-black text-ink">步行 {step.duration}</span>
+                                            <span className="text-[12px] text-ink-muted font-bold">({step.distance})</span>
+                                        </div>
+                                        <p className="text-[13px] text-ink-muted italic leading-relaxed font-bold opacity-80" dangerouslySetInnerHTML={{ __html: step.instruction }} />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {alternatives && alternatives.length > 0 && (
+                <div className="mt-8 pt-6 border-t-[3px] border-ink-border/30">
+                    <p className="text-[13px] font-black text-ink-muted mb-5 uppercase tracking-[0.15em] flex items-center gap-2">
+                        <Clock size={18} className="text-primary/70" /> 更多方案 (較晚出發)
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
+                        {alternatives.map((alt, idx) => {
+                            // Calculate Delay based on duration value (seconds)
+                            const delaySeconds = (alt.durationValue || 0) - (primaryDurationValue || 0);
+                            const delayMins = Math.round(delaySeconds / 60);
+
+                            return (
+                                <div key={idx} className="group flex flex-col p-4 rounded-2xl bg-surface-alt/50 hover:bg-white hover:shadow-2xl hover:ring-2 hover:ring-primary/40 transition-all duration-500 border border-transparent cursor-default">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2.5">
+                                                <span className="text-[18px] font-black text-primary">{alt.departureTime}</span>
+                                                <span className="text-ink-muted/50 text-sm font-black">➜</span>
+                                                <span className="text-[18px] font-black text-ink">{alt.arrivalTime}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[12px] text-ink-muted font-black">
+                                                    全程約 {alt.duration}
+                                                </span>
+                                                {delayMins > 0 && (
+                                                    <span className="text-[11px] bg-red-50 text-red-600 px-2.5 py-0.5 rounded-full font-black border border-red-100 animate-pulse">
+                                                        比原定慢 {delayMins} 分鐘
+                                                    </span>
+                                                )}
+                                                {delayMins < 0 && (
+                                                    <span className="text-[11px] bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full font-black border border-emerald-100">
+                                                        快 {Math.abs(delayMins)} 分鐘
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-[13px] text-ink-muted font-black bg-white/70 px-4 py-2.5 rounded-xl mt-1 border border-ink-border/20 truncate italic shadow-sm group-hover:bg-primary/5 transition-colors">
+                                        {alt.summary}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const TransportConnector = ({ fromItem, onChangeMode }) => {
+    const [showDetails, setShowDetails] = useState(false);
     const modes = ['DRIVING', 'TRANSIT', 'WALKING'];
     const currentMode = fromItem.transportMode || 'DRIVING';
+    const hasTransitData = currentMode === 'TRANSIT' && ((fromItem.transitDetails && fromItem.transitDetails.length > 0) || (fromItem.alternatives && fromItem.alternatives.length > 0));
 
     const cycleMode = (e) => {
         e.stopPropagation();
@@ -216,20 +350,53 @@ const TransportConnector = ({ fromItem, onChangeMode }) => {
     return (
         <div className="pl-7 py-2 flex flex-col items-center relative text-ink-muted z-0">
             <div className="w-[2px] h-5 border-l-2 border-dashed border-ink-border mb-1" />
-            <div
-                className="flex items-center gap-1 text-xs bg-surface-alt px-2.5 py-0.5 rounded-xl cursor-pointer hover:bg-gray-200 transition-colors"
-                onClick={cycleMode}
-                title="點擊切換交通方式"
-            >
-                {getTransportIcon(currentMode)}
-                <span className="text-[0.7rem]">
-                    {currentMode === 'DRIVING' ? '開車' : currentMode === 'WALKING' ? '步行' : '大眾運輸'}
-                </span>
-                {fromItem.duration && (
-                    <span className="text-[0.7rem] opacity-70 ml-1">
-                        ({fromItem.duration})
+            <div className="flex flex-col items-center w-full">
+                <div
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-xl cursor-pointer transition-all shadow-sm ${currentMode === 'TRANSIT' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-surface-alt text-ink hover:bg-gray-200'}`}
+                    onClick={cycleMode}
+                    title="點擊切換交通方式"
+                >
+                    {getTransportIcon(currentMode)}
+                    <span className="font-bold">
+                        {currentMode === 'DRIVING' ? '開車' : currentMode === 'WALKING' ? '步行' : '大眾運輸'}
                     </span>
-                )}
+                    {fromItem.duration && (
+                        <span className="text-[0.7rem] opacity-70">
+                            ({fromItem.duration})
+                        </span>
+                    )}
+                    {currentMode === 'TRANSIT' && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDetails(!showDetails);
+                                if (!hasTransitData) {
+                                    toast.error("正在獲取詳細乘車資訊或該路線不支援...");
+                                }
+                            }}
+                            className={`ml-1 p-0.5 rounded-full transition-colors ${hasTransitData ? 'hover:bg-white/50 text-sky-600' : 'text-gray-300'}`}
+                        >
+                            {showDetails ? <ChevronUp size={14} /> : <Info size={14} />}
+                        </button>
+                    )}
+                </div>
+
+                <AnimatePresence>
+                    {showDetails && currentMode === 'TRANSIT' && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden w-full flex flex-col items-center"
+                        >
+                            <TransitDetails
+                                details={fromItem.transitDetails}
+                                alternatives={fromItem.alternatives}
+                                primaryDurationValue={fromItem.durationValue}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
             <div className="w-[2px] h-5 border-l-2 border-dashed border-ink-border mt-1" />
         </div>
@@ -254,8 +421,12 @@ export default function ItineraryPanel({
     currentItineraryTitle,
     onUpdateItineraryTitle,
     days = [],
-    activeDayLabel
+    activeDayLabel,
+    pocketList = [],
+    onMoveFromPocket,
+    onAddLocation // reuse or add a special one for pocket?
 }) {
+    const { showPocket, setShowPocket } = useItinerary();
     // Removed local dateRange state in favor of props
     // BUT we need local state for the DatePicker to be responsive during selection (before end date is picked)
     const [tempStartDate, setTempStartDate] = useState(startDate);
@@ -292,12 +463,18 @@ export default function ItineraryPanel({
     // Handle Drag End
     const handleDragEnd = useCallback(() => {
         setDraggedId(null);
-        const reCalculated = recalculateDayTimeline(localItems, startTime || '09:00');
+        const reCalculated = recalculateDayTimeline(localItems, startTime || '09:00', activeDayLabel);
         setLocalItems(reCalculated);
         onUpdateItinerary(activeDay, reCalculated);
-    }, [localItems, startTime, onUpdateItinerary, activeDay]);
+    }, [localItems, startTime, onUpdateItinerary, activeDay, activeDayLabel]);
 
     const [isAtBottom, setIsAtBottom] = useState(false);
+
+    const handlePocketToDay = (item) => {
+        if (!onMoveFromPocket) return;
+        onMoveFromPocket(activeDay, item);
+        toast.success(`已將 ${item.title} 加入 ${activeDayLabel || activeDay}`);
+    };
     const [daysAtStart, setDaysAtStart] = useState(true);
     const [daysAtEnd, setDaysAtEnd] = useState(false);
 
@@ -456,29 +633,31 @@ export default function ItineraryPanel({
                         placeholder="點擊輸入行程名稱..."
                     />
                     <span className="text-xs text-ink-muted">
-                        {orderedDayKeys.length} 天旅程
+                        {orderedDayKeys.length} 天旅程 • {pocketList.length} 個收藏
                     </span>
                 </div>
-                <div className="relative z-20">
-                    <DatePicker
-                        selectsRange={true}
-                        startDate={tempStartDate}
-                        endDate={tempEndDate}
-                        onChange={(update) => {
-                            const [start, end] = update;
-                            setTempStartDate(start);
-                            setTempEndDate(end);
+                <div className="flex items-center gap-2">
+                    <div className="relative z-20">
+                        <DatePicker
+                            selectsRange={true}
+                            startDate={tempStartDate}
+                            endDate={tempEndDate}
+                            onChange={(update) => {
+                                const [start, end] = update;
+                                setTempStartDate(start);
+                                setTempEndDate(end);
 
-                            if (start && end) {
-                                onUpdateDateRange(start, end);
-                            }
-                        }}
-                        customInput={<CustomDateInput />}
-                        dateFormat="M/d"
-                        portalId="root"
-                        popperPlacement="bottom-end"
-                        popperClassName="datepicker-portal"
-                    />
+                                if (start && end) {
+                                    onUpdateDateRange(start, end);
+                                }
+                            }}
+                            customInput={<CustomDateInput />}
+                            dateFormat="M/d"
+                            portalId="root"
+                            popperPlacement="bottom-end"
+                            popperClassName="datepicker-portal"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -623,6 +802,7 @@ export default function ItineraryPanel({
                     )}
                 </div>
             </div>
+
         </div>
     );
 }

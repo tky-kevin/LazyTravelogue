@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, InfoWindow, useGoogleMap, Polyline } from '@react-google-maps/api';
-import { Plus } from 'lucide-react';
+import { Plus, Bookmark } from 'lucide-react';
 import { CANVAS_MAP_STYLE } from './mapStyles';
 import { useRouteCalculator } from '../hooks/useRouteCalculator';
 import { categorizePlace } from '../utils/placeUtils';
@@ -149,6 +149,134 @@ const AdvancedMarker = ({ position, color, onClick, children }) => {
 };
 
 
+// Helper to parse transit details from a Google Maps DirectionsLeg
+const parseTransitDetails = (leg) => {
+    if (!leg || !leg.steps) return null;
+
+    return leg.steps.map(step => {
+        if (step.travel_mode === 'TRANSIT' && step.transit) {
+            return {
+                type: 'TRANSIT',
+                line: step.transit.line.short_name || step.transit.line.name,
+                vehicle: step.transit.line.vehicle.name,
+                departureStop: step.transit.departure_stop.name,
+                arrivalStop: step.transit.arrival_stop.name,
+                departureTime: step.transit.departure_time?.text || '未提供',
+                arrivalTime: step.transit.arrival_time?.text || '未提供',
+                numStops: step.transit.num_stops,
+                color: step.transit.line.color,
+                textColor: step.transit.line.text_color
+            };
+        } else if (step.travel_mode === 'WALKING') {
+            return {
+                type: 'WALKING',
+                duration: step.duration.text,
+                distance: step.distance.text,
+                instruction: step.instructions
+            };
+        }
+        return null;
+    }).filter(Boolean);
+};
+
+// Helper to parse alternative routes info
+const parseAlternatives = (result, selectedIndex = 0, baseTime = new Date()) => {
+    if (!result || !result.routes || result.routes.length <= 1) return null;
+
+    // Filter out the selected route
+    return result.routes
+        .map((route, index) => ({ route, index }))
+        .filter(({ index }) => index !== selectedIndex)
+        .map(({ route }) => {
+            const leg = route.legs[0];
+            const transitSteps = leg.steps.filter(s => s.travel_mode === 'TRANSIT');
+
+            let startTimeMs, endTimeMs;
+
+            // Smart timestamp parser - handles Date objects, seconds, milliseconds, and strings
+            const parseTimeValue = (timeObj, fallbackMs = null) => {
+                if (!timeObj || !timeObj.value) {
+                    return fallbackMs;
+                }
+
+                const value = timeObj.value;
+
+                // Case 1: Already a Date object
+                if (value instanceof Date) {
+                    return value.getTime();
+                }
+
+                // Case 2: Timestamp (need to detect seconds vs milliseconds)
+                if (typeof value === 'number') {
+                    // Unix timestamps < 10000000000 are in seconds (before year 2286)
+                    // This is a safe assumption since 10000000000 = Nov 20, 2286
+                    if (value < 10000000000) {
+                        console.log(`🕐 Converting seconds to ms: ${value} → ${value * 1000}`);
+                        return value * 1000; // Convert seconds to milliseconds
+                    }
+                    return value; // Already in milliseconds
+                }
+
+                // Case 3: String (ISO 8601, etc.)
+                if (typeof value === 'string') {
+                    const parsed = new Date(value).getTime();
+                    if (!isNaN(parsed)) {
+                        return parsed;
+                    }
+                }
+
+                console.warn('⚠️ Could not parse time value:', value, typeof value);
+                return fallbackMs;
+            };
+
+            // Parse departure time
+            const legDep = leg.departure_time;
+            startTimeMs = parseTimeValue(legDep, baseTime.getTime());
+
+            // Parse arrival time
+            const legArr = leg.arrival_time;
+            endTimeMs = parseTimeValue(legArr, null);
+
+            // If arrival time is missing, calculate from start + duration
+            if (!endTimeMs) {
+                endTimeMs = startTimeMs + (leg.duration.value * 1000);
+            }
+
+            // Improved time formatting with explicit timezone
+            const formatTime = (ms) => {
+                const d = new Date(ms);
+                return d.toLocaleTimeString('zh-TW', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                    timeZone: 'Asia/Taipei'
+                });
+            };
+
+            const alternativeInfo = {
+                duration: leg.duration.text,
+                durationValue: leg.duration.value,
+                departureTime: formatTime(startTimeMs),
+                departureTimeValue: startTimeMs,
+                arrivalTime: formatTime(endTimeMs),
+                arrivalTimeValue: endTimeMs,
+                summary: transitSteps.length > 0
+                    ? transitSteps.map(s => (s.transit?.line.short_name || s.transit?.line.name)).join(' ➔ ')
+                    : '步行為主'
+            };
+
+            // Debug logging
+            console.log('🚇 Alternative route parsed:', {
+                departure: `${alternativeInfo.departureTime} (${new Date(startTimeMs).toISOString()})`,
+                arrival: `${alternativeInfo.arrivalTime} (${new Date(endTimeMs).toISOString()})`,
+                duration: alternativeInfo.duration,
+                summary: alternativeInfo.summary
+            });
+
+            return alternativeInfo;
+        });
+};
+
 // Custom Polyline wrapper to ensure clean unmounting
 const ManualPolyline = ({ path, options }) => {
     const map = useGoogleMap();
@@ -185,7 +313,7 @@ const ManualPolyline = ({ path, options }) => {
     return null;
 };
 
-export default function MapPanel({ selectedLocation, focusedLocation, itineraryData, days = [], activeDay, activeDayLabel, onLocationSelect, onAddLocation, onDirectionsFetched, onDirectionsError }) {
+export default function MapPanel({ selectedLocation, focusedLocation, itineraryData, days = [], activeDay, activeDayLabel, onLocationSelect, onAddLocation, onAddToPocket, onDirectionsFetched, onDirectionsError }) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
@@ -247,16 +375,20 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     // Transform props to renderable list
     const mapData = useMemo(() => {
         if (!days || days.length === 0) return [];
-        return days.map((day, index) => ({
-            day: day.id,
-            color: getColorForDay(index),
-            locations: (day.activities || []).map(item => ({
-                ...item,
-                lat: parseFloat(item.lat),
-                lng: parseFloat(item.lng)
-            }))
-        }));
-    }, [days]);
+        return days.map((day, index) => {
+            // Use itineraryData activities if they belong to this day (itineraryData holds calculated days)
+            const activities = itineraryData[day.id] || itineraryData[day.date] || day.activities || [];
+            return {
+                day: day.id,
+                color: getColorForDay(index),
+                locations: activities.map(item => ({
+                    ...item,
+                    lat: parseFloat(item.lat),
+                    lng: parseFloat(item.lng)
+                }))
+            };
+        });
+    }, [days, itineraryData]);
 
     const onLoad = useCallback((map) => {
         mapRef.current = map;
@@ -307,28 +439,71 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                 const transportMode = loc.transportMode || 'DRIVING';
                 const cacheKey = `${loc.lat},${loc.lng}-${nextLoc.lat},${nextLoc.lng}-${transportMode}`;
 
+                // Departure Time for transit (if available from previous activity's calculated end time)
+                const departureTime = (dayData.day === activeDay && loc.endDate) ? new Date(loc.endDate) : null;
+
                 // Fetch Route
-                getRoute(loc, nextLoc, transportMode)
+                getRoute(loc, nextLoc, transportMode, departureTime)
                     .then(result => {
-                        // Update local render state if new
+                        console.log("Directions Result:", result); // Debugging
+
+                        // Smart selection for TRANSIT mode:
+                        // Prioritize the FASTEST route that actually has TRANSIT steps.
+                        let selectedRouteIndex = 0;
+                        if (transportMode === 'TRANSIT' && result.routes && result.routes.length > 0) {
+                            // detailedRoutes: Array of { index, route, durationValue, hasTransit }
+                            const candidates = result.routes.map((r, idx) => ({
+                                index: idx,
+                                route: r,
+                                durationValue: r.legs[0].duration.value,
+                                hasTransit: r.legs[0].steps.some(s => s.travel_mode === 'TRANSIT')
+                            }));
+
+                            // Filter for routes with transit steps
+                            const transitCandidates = candidates.filter(c => c.hasTransit);
+
+                            if (transitCandidates.length > 0) {
+                                // Sort by duration (ascending) -> pick fastest
+                                transitCandidates.sort((a, b) => a.durationValue - b.durationValue);
+                                selectedRouteIndex = transitCandidates[0].index;
+                            } else {
+                                // Fallback: if no transit steps found in any route (rare), stick to default (Google's best guess, likely walking)
+                                selectedRouteIndex = 0;
+                            }
+                        }
+
+                        // Update local render state
                         setRenderedRoutes(prev => {
                             if (prev[cacheKey]) return prev;
-                            return { ...prev, [cacheKey]: result };
+                            return { ...prev, [cacheKey]: { ...result, selectedRouteIndex } };
                         });
 
                         // Notify Parent (App.jsx)
                         if (onDirectionsFetched) {
-                            const leg = result.routes[0].legs[0];
+                            const selectedRoute = result.routes[selectedRouteIndex];
+                            const leg = selectedRoute.legs[0];
+
+                            // Use the REQUESTED departure time as a fallback base if leg time is missing
+                            // (e.g. Walking routes often lack absolute timestamps)
+                            const baseTime = departureTime ? new Date(departureTime) : new Date();
+
+                            const transitDetails = transportMode === 'TRANSIT' ? parseTransitDetails(leg) : null;
+                            const alternatives = transportMode === 'TRANSIT' ? parseAlternatives(result, selectedRouteIndex, baseTime) : null;
+
                             onDirectionsFetched(dayData.day, loc.id, {
                                 duration: leg.duration || {},
-                                distance: leg.distance || {}
+                                distance: leg.distance || {},
+                                transitDetails,
+                                alternatives,
+                                transportMode // Ensure mode is passed back
                             });
                         }
                     })
-                    .catch(status => {
-                        console.warn(`Route failed: ${status}`);
+                    .catch(err => {
+                        console.error(`Error fetching route for ${loc.name} -> ${nextLoc.name}:`, err);
+                        // Only notify error, do not switch mode automatically
                         if (onDirectionsError) {
-                            onDirectionsError(dayData.day, loc.id, status);
+                            onDirectionsError(dayData.day, loc.id, err);
                         }
                     });
             });
@@ -422,10 +597,12 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                             const route = renderedRoutes[cacheKey];
 
                             if (route && route.status === 'OK') {
+                                // Use the selected route index (optimized for transit)
+                                const routeIndex = route.selectedRouteIndex || 0;
                                 return (
                                     <ManualPolyline
                                         key={cacheKey}
-                                        path={route.routes[0].overview_path}
+                                        path={route.routes[routeIndex].overview_path}
                                         options={getStepOptions(transportMode, dayData.color)}
                                     />
                                 );
@@ -469,13 +646,22 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                                 <div className="font-sans text-center max-w-[200px]">
                                     <h3 className="font-semibold text-sm mb-1">{selectedLocation.name}</h3>
                                     <p className="text-xs text-gray-500 mb-2">{selectedLocation.fullAddress}</p>
-                                    <button
-                                        onClick={onAddLocation}
-                                        className="w-full flex items-center justify-center gap-1 bg-primary text-white py-1.5 rounded text-xs font-medium hover:bg-primary/90 transition-colors"
-                                    >
-                                        <Plus size={14} />
-                                        加入 {activeDayLabel || activeDay}
-                                    </button>
+                                    <div className="flex flex-col gap-2">
+                                        <button
+                                            onClick={onAddLocation}
+                                            className="w-full flex items-center justify-center gap-1 bg-primary text-white py-1.5 rounded text-xs font-medium hover:bg-primary/90 transition-colors"
+                                        >
+                                            <Plus size={14} />
+                                            加入 {activeDayLabel || activeDay}
+                                        </button>
+                                        <button
+                                            onClick={onAddToPocket}
+                                            className="w-full flex items-center justify-center gap-1 bg-ink text-white py-1.5 rounded text-xs font-medium hover:bg-ink/90 transition-colors"
+                                        >
+                                            <Bookmark size={14} />
+                                            加入口袋名單
+                                        </button>
+                                    </div>
                                 </div>
                             </InfoWindow>
                         )}

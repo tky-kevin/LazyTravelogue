@@ -1,10 +1,17 @@
 import { format, differenceInCalendarDays, addMinutes } from 'date-fns';
 
-export const recalculateDayTimeline = (items, startTimeStr) => {
+export const recalculateDayTimeline = (items, startTimeStr, targetDateStr = null) => {
     if (!items || items.length === 0) return [];
 
-    // Base Reference Date (Today)
-    const baseDate = new Date();
+    // Base Reference Date (Use targetDateStr if provided, else today)
+    let baseDate = new Date();
+    if (targetDateStr) {
+        const parsed = new Date(targetDateStr);
+        if (!isNaN(parsed.getTime())) {
+            baseDate = parsed;
+        }
+    }
+    // Ensure baseDate starts at 00:00:00 of THAT day
     baseDate.setHours(0, 0, 0, 0);
 
     // Initial Start Time
