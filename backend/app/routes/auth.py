@@ -53,8 +53,8 @@ async def google_login(request: GoogleAuthRequest, response: Response):
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True, # Should be True in Prod, ensure localhost works (might need False if not https)
-            samesite="lax", # lax is good for navigation
+            secure=True,
+            samesite="none",
             max_age=60 * 60 * 24 * 7 # 7 days
         )
 
