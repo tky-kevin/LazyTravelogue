@@ -48,13 +48,16 @@ async def google_login(request: GoogleAuthRequest, response: Response):
         # Create Session Token (JWT)
         access_token = create_access_token(data={"sub": user_id, "email": email})
 
+        # Determine environment
+        is_production = os.getenv("VERCEL") or os.getenv("PROD")
+        
         # Set HttpOnly Cookie
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True,
-            samesite="none",
+            secure=True if is_production else False,  # False for localhost http
+            samesite="lax",  # Safer for same-origin (Vercel) and localhost
             max_age=60 * 60 * 24 * 7 # 7 days
         )
 
