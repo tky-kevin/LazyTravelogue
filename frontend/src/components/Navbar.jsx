@@ -14,7 +14,8 @@ export default function Navbar({ onLocationSelect }) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-        libraries: LIBRARIES
+        libraries: LIBRARIES,
+        language: 'zh-TW'
     });
 
     const onLoad = (autocomplete) => {
