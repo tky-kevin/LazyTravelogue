@@ -3,6 +3,8 @@ import { Search, Share2, User, LogOut, X, Clock, History, Map as MapIcon, Plus, 
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
 import { categorizePlace } from '../utils/placeUtils';
+import client from '../api/client';
+import toast from 'react-hot-toast';
 
 // Libraries needed for Google Maps
 const LIBRARIES = ['places', 'marker'];
@@ -54,7 +56,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
         if (saved) {
             try {
                 setRecentSearches(JSON.parse(saved).slice(0, 5));
-            } catch (e) { console.error(e); }
+            } catch (e) { /* ignore parse error */ }
         }
     }, []);
 
@@ -121,7 +123,6 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
             const place = searchResult.getPlace();
 
             if (!place.geometry || !place.geometry.location) {
-                console.log("Returned place contains no geometry");
                 return;
             }
 
@@ -140,9 +141,25 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
             saveRecentSearch(place);
             setInputValue(place.name || place.formatted_address);
             setShowRecent(false);
-        } else {
-            console.log('Autocomplete is not loaded yet!');
         }
+    };
+
+    const handleShare = async () => {
+        const itineraryId = currentItinerary?._id || currentItinerary?.id;
+        if (!itineraryId) return toast.error("無法分享：未找到行程 ID");
+
+        const promise = client.put(`/api/itineraries/${itineraryId}/share`, { is_public: true })
+            .then(res => res.data.share_token);
+
+        toast.promise(promise, {
+            loading: '正在產生分享連結...',
+            success: (token) => {
+                const url = `${window.location.origin}/share/${token}`;
+                navigator.clipboard.writeText(url);
+                return '連結已複製到剪貼簿！';
+            },
+            error: (err) => `分享失敗: ${err.message}`
+        });
     };
 
     return (
@@ -387,9 +404,12 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                     </div>
                 )}
 
-                <button className="hidden md:flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm">
-                    <Share2 size={18} />
-                    <span>分享</span>
+                <button
+                    onClick={handleShare}
+                    className="flex items-center justify-center p-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm group"
+                    title="分享行程"
+                >
+                    <Share2 size={18} className="text-gray-400 group-hover:text-emerald-500 transition-colors" />
                 </button>
 
                 {user ? (

@@ -86,3 +86,34 @@ class ItineraryService:
         db = get_database()
         result = await db["itineraries"].delete_one({"_id": ObjectId(itinerary_id), "user_id": user_id})
         return result.deleted_count > 0
+
+    @staticmethod
+    async def enable_sharing(itinerary_id: str, user_id: str, is_public: bool) -> Itinerary:
+        db = get_database()
+        
+        # Verify ownership
+        await ItineraryService.get_one(itinerary_id, user_id)
+        
+        update_fields = {"is_public": is_public, "updated_at": datetime.utcnow()}
+        
+        if is_public:
+            # Check if token already exists to avoid refreshing it unnecessarily
+            existing = await db["itineraries"].find_one({"_id": ObjectId(itinerary_id)})
+            if not existing.get("share_token"):
+                import secrets
+                update_fields["share_token"] = secrets.token_urlsafe(16)
+        
+        await db["itineraries"].update_one(
+            {"_id": ObjectId(itinerary_id)},
+            {"$set": update_fields}
+        )
+        
+        return await ItineraryService.get_one(itinerary_id, user_id)
+
+    @staticmethod
+    async def get_by_share_token(token: str) -> Itinerary:
+        db = get_database()
+        doc = await db["itineraries"].find_one({"share_token": token, "is_public": True})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Itinerary not found or not public")
+        return Itinerary(**doc)

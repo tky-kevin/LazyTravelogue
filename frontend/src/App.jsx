@@ -100,7 +100,7 @@ function App() {
           <p className="text-gray-600 mb-4">Please sign in to continue</p>
           <GoogleLogin
             onSuccess={login}
-            onError={() => console.log('Login Failed')}
+            onError={() => { }}
           />
         </div>
       </div>
@@ -148,6 +148,7 @@ function App() {
             onUpdateStayDuration={handleUpdateStayDuration}
             pocketList={currentItinerary?.pocket_list || []}
             onMoveFromPocket={handleMoveFromPocketToDay}
+            itineraryId={currentItinerary?.id || currentItinerary?._id}
           />
         </div>
 

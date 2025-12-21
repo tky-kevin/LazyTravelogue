@@ -53,7 +53,7 @@ export function useItineraryActions() {
             }
         }
 
-        console.log(`Added ${selectedLocation.name} to ${activeDay}`);
+
         if (mobileViewSetter) mobileViewSetter('list');
     };
 
@@ -222,10 +222,8 @@ export function useItineraryActions() {
 
     }, [currentItinerary, patchItinerary, updateItinerary]);
 
-    const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
-        // We no longer automatically switch modes on error.
-        // Instead, the UI will reflect that no data was found.
-        console.warn(`Directions error for ${fromItemId} on ${dayId}: ${status}`);
+    const handleDirectionsError = useCallback(() => {
+        // UI will reflect that no data was found
     }, []);
 
     const handleReorderDays = useCallback((newDayOrder) => {

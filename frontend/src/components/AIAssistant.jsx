@@ -127,7 +127,7 @@ export default function AIAssistant() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-14 h-14 md:w-16 md:h-16 rounded-[30%] text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-indigo-400 to-purple-400"
+                    className="w-14 h-14 md:w-16 md:h-16 rounded-full text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-indigo-400 to-purple-400"
                 >
                     {isOpen ? <X size={28} /> : <Sparkles size={28} />}
                 </motion.button>

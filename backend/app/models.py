@@ -55,6 +55,10 @@ class Itinerary(BaseModel):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Sharing
+    is_public: bool = False
+    share_token: Optional[str] = None
 
     model_config = ConfigDict(
         populate_by_name=True,

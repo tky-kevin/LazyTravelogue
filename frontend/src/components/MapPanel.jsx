@@ -179,103 +179,7 @@ const parseTransitDetails = (leg) => {
     }).filter(Boolean);
 };
 
-// Helper to parse alternative routes info
-const parseAlternatives = (result, selectedIndex = 0, baseTime = new Date()) => {
-    if (!result || !result.routes || result.routes.length <= 1) return null;
 
-    // Filter out the selected route
-    return result.routes
-        .map((route, index) => ({ route, index }))
-        .filter(({ index }) => index !== selectedIndex)
-        .map(({ route }) => {
-            const leg = route.legs[0];
-            const transitSteps = leg.steps.filter(s => s.travel_mode === 'TRANSIT');
-
-            let startTimeMs, endTimeMs;
-
-            // Smart timestamp parser - handles Date objects, seconds, milliseconds, and strings
-            const parseTimeValue = (timeObj, fallbackMs = null) => {
-                if (!timeObj || !timeObj.value) {
-                    return fallbackMs;
-                }
-
-                const value = timeObj.value;
-
-                // Case 1: Already a Date object
-                if (value instanceof Date) {
-                    return value.getTime();
-                }
-
-                // Case 2: Timestamp (need to detect seconds vs milliseconds)
-                if (typeof value === 'number') {
-                    // Unix timestamps < 10000000000 are in seconds (before year 2286)
-                    // This is a safe assumption since 10000000000 = Nov 20, 2286
-                    if (value < 10000000000) {
-                        console.log(`🕐 Converting seconds to ms: ${value} → ${value * 1000}`);
-                        return value * 1000; // Convert seconds to milliseconds
-                    }
-                    return value; // Already in milliseconds
-                }
-
-                // Case 3: String (ISO 8601, etc.)
-                if (typeof value === 'string') {
-                    const parsed = new Date(value).getTime();
-                    if (!isNaN(parsed)) {
-                        return parsed;
-                    }
-                }
-
-                console.warn('⚠️ Could not parse time value:', value, typeof value);
-                return fallbackMs;
-            };
-
-            // Parse departure time
-            const legDep = leg.departure_time;
-            startTimeMs = parseTimeValue(legDep, baseTime.getTime());
-
-            // Parse arrival time
-            const legArr = leg.arrival_time;
-            endTimeMs = parseTimeValue(legArr, null);
-
-            // If arrival time is missing, calculate from start + duration
-            if (!endTimeMs) {
-                endTimeMs = startTimeMs + (leg.duration.value * 1000);
-            }
-
-            // Improved time formatting with explicit timezone
-            const formatTime = (ms) => {
-                const d = new Date(ms);
-                return d.toLocaleTimeString('zh-TW', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false,
-                    timeZone: 'Asia/Taipei'
-                });
-            };
-
-            const alternativeInfo = {
-                duration: leg.duration.text,
-                durationValue: leg.duration.value,
-                departureTime: formatTime(startTimeMs),
-                departureTimeValue: startTimeMs,
-                arrivalTime: formatTime(endTimeMs),
-                arrivalTimeValue: endTimeMs,
-                summary: transitSteps.length > 0
-                    ? transitSteps.map(s => (s.transit?.line.short_name || s.transit?.line.name)).join(' ➔ ')
-                    : '步行為主'
-            };
-
-            // Debug logging
-            console.log('🚇 Alternative route parsed:', {
-                departure: `${alternativeInfo.departureTime} (${new Date(startTimeMs).toISOString()})`,
-                arrival: `${alternativeInfo.arrivalTime} (${new Date(endTimeMs).toISOString()})`,
-                duration: alternativeInfo.duration,
-                summary: alternativeInfo.summary
-            });
-
-            return alternativeInfo;
-        });
-};
 
 // Custom Polyline wrapper to ensure clean unmounting
 const ManualPolyline = ({ path, options }) => {
@@ -332,10 +236,10 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
 
     // Map Layers State
     const [layers, setLayers] = useState({
-        poi: true,      // Attractions / General POI
-        business: true, // Shops / Restaurants
-        transit: true,  // Transit Stations
-        park: true      // Parks
+        poi: false,      // Attractions / General POI
+        business: false, // Shops / Restaurants
+        transit: false,  // Transit Stations
+        park: false      // Parks
     });
 
     const toggleLayer = (layer) => {
@@ -445,7 +349,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                 // Fetch Route
                 getRoute(loc, nextLoc, transportMode, departureTime)
                     .then(result => {
-                        console.log("Directions Result:", result); // Debugging
+
 
                         // Smart selection for TRANSIT mode:
                         // Prioritize the FASTEST route that actually has TRANSIT steps.
@@ -488,13 +392,11 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                             const baseTime = departureTime ? new Date(departureTime) : new Date();
 
                             const transitDetails = transportMode === 'TRANSIT' ? parseTransitDetails(leg) : null;
-                            const alternatives = transportMode === 'TRANSIT' ? parseAlternatives(result, selectedRouteIndex, baseTime) : null;
 
                             onDirectionsFetched(dayData.day, loc.id, {
                                 duration: leg.duration || {},
                                 distance: leg.distance || {},
                                 transitDetails,
-                                alternatives,
                                 transportMode // Ensure mode is passed back
                             });
                         }
@@ -564,7 +466,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                 }}
             >
                 {/* Layer Toggles UI */}
-                <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2 max-w-[280px]">
+                <div className="absolute bottom-4 left-4 z-10 grid grid-cols-2 gap-2 w-fit">
                     {[
                         { id: 'poi', label: '景點', icon: '🏛️' },
                         { id: 'business', label: '商店', icon: '🛍️' },

@@ -115,82 +115,11 @@
   @apply font-bold text-primary;
 }
 
-/* --- React DatePicker Custom Styling (Modern Travel Design) --- */
-.react-datepicker {
-  @apply bg-white border-0 rounded-[28px] shadow-datepicker font-sans overflow-hidden p-3;
-}
-
-.react-datepicker__header {
-  @apply bg-white border-b-0 pt-8 pb-4 px-6;
-}
-
-.react-datepicker__current-month {
-  @apply font-sans font-bold text-ink text-base tracking-tight mb-4 uppercase text-center;
-}
-
-.react-datepicker__day-names {
-  @apply flex justify-between px-2 mb-2;
-}
-
-.react-datepicker__day-name {
-  @apply text-[10px] font-bold text-ink-muted uppercase tracking-widest w-10 text-center;
-}
-
-.react-datepicker__month {
-  @apply m-0 p-2;
-}
-
-.react-datepicker__day {
-  @apply text-ink w-10 h-10 leading-10 rounded-xl transition-all hover:bg-surface-alt hover:text-ink m-0.5 text-sm font-medium;
-}
-
-/* Range Selected Styling */
-.react-datepicker__day--selected,
-.react-datepicker__day--range-start,
-.react-datepicker__day--range-end {
-  @apply bg-ink text-white rounded-xl shadow-md !important;
-  transform: scale(1.05);
-  z-index: 10;
-}
-
-.react-datepicker__day--in-range {
-  @apply bg-primary/10 text-primary rounded-none !important;
-}
-
-.react-datepicker__day--in-selecting-range {
-  @apply bg-primary/5 text-primary/60 rounded-none !important;
-}
-
-.react-datepicker__day--keyboard-selected {
-  @apply bg-transparent text-primary ring-2 ring-primary/20 rounded-xl;
-}
-
-.react-datepicker__day--outside-month {
-  @apply opacity-10 pointer-events-none;
-}
-
-.react-datepicker__triangle {
-  display: none !important;
-}
-
-/* Nav Arrows */
-.react-datepicker__navigation {
-  @apply top-10 px-6;
-}
-
-.react-datepicker__navigation--previous {
-  @apply left-6;
-}
-
-.react-datepicker__navigation--next {
-  @apply right-6;
-}
-
-.react-datepicker__navigation-icon::before {
-  @apply border-ink border-t-2 border-r-2 w-2 h-2 !important;
-}
-
-/* Ensure Portal renders above everything (similar to Google Search results) */
+/* --- React DatePicker Portal z-index --- */
 .datepicker-portal {
+  z-index: 9999 !important;
+}
+
+.react-datepicker-popper {
   z-index: 9999 !important;
 }

@@ -52,3 +52,17 @@ async def delete_itinerary(
             status_code=404, detail="Itinerary not found or permission denied"
         )
     return {"message": "Itinerary deleted"}
+
+
+@router.put("/itineraries/{itinerary_id}/share", response_model=Itinerary)
+async def share_itinerary(
+    itinerary_id: str,
+    is_public: bool = Body(..., embed=True),
+    user: TokenData = Depends(get_current_user),
+):
+    return await ItineraryService.enable_sharing(itinerary_id, user.user_id, is_public)
+
+
+@router.get("/public/itineraries/{token}", response_model=Itinerary)
+async def get_public_itinerary(token: str):
+    return await ItineraryService.get_by_share_token(token)
