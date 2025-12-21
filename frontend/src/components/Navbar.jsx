@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Share2, User, LogOut } from 'lucide-react';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
@@ -21,6 +21,21 @@ export default function Navbar({ onLocationSelect }) {
     const onLoad = (autocomplete) => {
         setSearchResult(autocomplete);
     };
+
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setIsMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     const onPlaceChanged = () => {
         if (searchResult !== null) {
@@ -86,8 +101,11 @@ export default function Navbar({ onLocationSelect }) {
 
                 {user ? (
                     <div className="flex items-center gap-3">
-                        <div className="relative group">
-                            <div className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer">
+                        <div className="relative" ref={menuRef}>
+                            <div
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer"
+                            >
                                 {user.picture ? (
                                     <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
                                 ) : (
@@ -98,15 +116,17 @@ export default function Navbar({ onLocationSelect }) {
                             </div>
 
                             {/* Simple Dropdown for Logout */}
-                            <div className="absolute right-0 top-12 w-32 bg-white rounded-lg shadow-xl border border-gray-100 py-1 hidden group-hover:block">
-                                <button
-                                    onClick={logout}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
-                                >
-                                    <LogOut size={14} />
-                                    Sign Out
-                                </button>
-                            </div>
+                            {isMenuOpen && (
+                                <div className="absolute right-0 top-12 w-32 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <button
+                                        onClick={logout}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
+                                    >
+                                        <LogOut size={14} />
+                                        Sign Out
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -115,6 +135,6 @@ export default function Navbar({ onLocationSelect }) {
                     </div>
                 )}
             </div>
-        </nav>
+        </nav >
     );
 }
