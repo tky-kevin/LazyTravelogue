@@ -22,7 +22,7 @@ app = FastAPI(title="LazyTravelogue API", version="1.0.0", lifespan=lifespan)
 
 # CORS (Allow Frontend)
 origins = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://lazy-travelogue.vercel.app"
 ).split(",")
 
 app.add_middleware(
