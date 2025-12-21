@@ -57,7 +57,7 @@ async def google_login(request: GoogleAuthRequest, response: Response):
             value=access_token,
             httponly=True,
             secure=True if is_production else False,  # False for localhost http
-            samesite="lax",  # Safer for same-origin (Vercel) and localhost
+            samesite="none" if is_production else "lax",  # Adjust for cross-site
             max_age=60 * 60 * 24 * 7 # 7 days
         )
 
