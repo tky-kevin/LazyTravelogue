@@ -27,8 +27,11 @@ function App() {
     handleUpdateTransportMode,
     handleUpdateStayDuration,
     handleUpdateStartTime,
+    handleUpdateDateRange,
     handleDirectionsFetched,
-    handleDirectionsError
+    handleDirectionsError,
+    handleReorderDays,
+    handleRemoveItem
   } = useItineraryActions();
 
   const [focusedLocation, setFocusedLocation] = useState(null);
@@ -105,6 +108,11 @@ function App() {
             activeDay={activeDay}
             onDayChange={setActiveDay}
             itineraryData={calculatedItinerary}
+            startDate={currentItinerary?.start_date ? new Date(currentItinerary.start_date) : new Date()}
+            endDate={currentItinerary?.end_date ? new Date(currentItinerary.end_date) : new Date()}
+            onUpdateDateRange={handleUpdateDateRange}
+            onReorderDays={handleReorderDays}
+            onRemoveItem={handleRemoveItem}
             startTime={startTimes[activeDay] || '09:00'}
             onUpdateStartTime={handleUpdateStartTime}
             onUpdateItinerary={handleUpdateItinerary}

@@ -1,6 +1,6 @@
 import { useState, forwardRef, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Reorder, motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Clock, MoreVertical, GripVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car } from 'lucide-react';
+import { Clock, MoreVertical, GripVertical, Coffee, Hotel, Camera, Bus, Calendar as CalendarIcon, MapPin, Footprints, Train, Car, Trash2 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { format, addDays, differenceInDays } from 'date-fns';
 import { recalculateDayTimeline } from '../utils/timeUtils';
@@ -41,7 +41,7 @@ const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
 ));
 
 // New Component to handle Drag Controls individually
-const DraggableItineraryItem = ({ item, index, localItemsLength, draggedId, setDraggedId, handleDragEnd, onLocationFocus, onUpdateStayDuration, activeDay, onUpdateTransportMode }) => {
+const DraggableItineraryItem = ({ item, index, localItemsLength, draggedId, setDraggedId, handleDragEnd, onLocationFocus, onUpdateStayDuration, activeDay, onUpdateTransportMode, onRemoveItem }) => {
     const dragControls = useDragControls();
 
     return (
@@ -66,6 +66,7 @@ const DraggableItineraryItem = ({ item, index, localItemsLength, draggedId, setD
                     onClick={() => onLocationFocus && onLocationFocus(item)}
                     onUpdateStayDuration={(id, val) => onUpdateStayDuration(activeDay, id, val)}
                     dragControls={dragControls}
+                    onRemove={() => onRemoveItem && onRemoveItem(activeDay, item.id)}
                 />
             </div>
 
@@ -84,7 +85,7 @@ const DraggableItineraryItem = ({ item, index, localItemsLength, draggedId, setD
 // ... (Keep TransportConnector) ...
 
 // Modify ItineraryCard to accept dragControls and render handle
-const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragControls }) => {
+const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragControls, onRemove }) => {
     // Generate a stable random rotation for natural feel
     const rotation = useRef(Math.random() * 2 - 1).current;
 
@@ -150,11 +151,23 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
                     <div className="flex justify-between mb-2">
                         <h3 className="text-base font-semibold text-ink m-0 pr-6">{item.title}</h3>
                         {/* Drag Handle */}
-                        <div
-                            className="absolute right-3 top-3 p-2 text-ink-muted cursor-grab touch-none"
-                            onPointerDown={(e) => dragControls.start(e)}
-                        >
-                            <GripVertical size={18} />
+                        <div className="flex items-center absolute right-3 top-3">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onRemove && onRemove();
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors mr-1"
+                                title="移除地點"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                            <div
+                                className="p-1.5 text-ink-muted cursor-grab touch-none"
+                                onPointerDown={(e) => dragControls.start(e)}
+                            >
+                                <GripVertical size={18} />
+                            </div>
                         </div>
                     </div>
                     {/* ... Rest of content ... */}
@@ -223,9 +236,32 @@ const TransportConnector = ({ fromItem, onChangeMode }) => {
     );
 };
 
-export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, onUpdateItinerary, onLocationFocus, onUpdateTransportMode, startTime, onUpdateStartTime, onUpdateStayDuration }) {
-    const [dateRange, setDateRange] = useState([new Date(), addDays(new Date(), 4)]);
-    const [startDate, endDate] = dateRange;
+export default function ItineraryPanel({
+    activeDay,
+    onDayChange,
+    itineraryData,
+    startDate,
+    endDate,
+    onUpdateDateRange,
+    onUpdateItinerary,
+    onLocationFocus,
+    onUpdateTransportMode,
+    startTime,
+    onUpdateStartTime,
+    onUpdateStayDuration,
+    onReorderDays,
+    onRemoveItem
+}) {
+    // Removed local dateRange state in favor of props
+    // BUT we need local state for the DatePicker to be responsive during selection (before end date is picked)
+    const [tempStartDate, setTempStartDate] = useState(startDate);
+    const [tempEndDate, setTempEndDate] = useState(endDate);
+
+    useEffect(() => {
+        setTempStartDate(startDate);
+        setTempEndDate(endDate);
+    }, [startDate, endDate]);
+
     const [days, setDays] = useState([]);
 
     // Local State for Drag & Drop Performance
@@ -307,20 +343,75 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
     }, [localItems, activeDay]);
 
     // Generate days
+    // We need a stable list of keys ("Day 1", "Day 2"...) that can be reordered.
+    // The visual LABEL (1, 2, 3...) comes from the index in the reordered list.
+    const [orderedDayKeys, setOrderedDayKeys] = useState([]);
+
     useEffect(() => {
         if (startDate && endDate) {
             const dayCount = differenceInDays(endDate, startDate) + 1;
-            const newDays = Array.from({ length: dayCount }, (_, i) => {
-                const date = addDays(startDate, i);
-                return {
-                    id: `Day ${i + 1}`,
-                    label: `${i + 1}`,
-                    dateStr: format(date, 'M/d')
-                };
+            // When date range changes, we want to regenerate the keys if count differs significantly
+            // or if initialization.
+            // For simplicity, we regenerate if length doesn't match, preserving existing keys order if possible?
+            // Actually, simplest is to reset if length changes to match new structure.
+            // If user just swaps days, length is same, this won't trigger if dates don't change.
+            // But if dates change, we probably reset order.
+
+            setOrderedDayKeys(prev => {
+                if (prev.length === dayCount) return prev; // Keep order if same length (e.g. date shift but same duration? uncertain)
+                // Actually safer to reset specific to current range size
+                return Array.from({ length: dayCount }, (_, i) => `Day ${i + 1}`);
             });
-            setDays(newDays);
+
+            // We still need the 'days' array for metadata like dateStr BUT
+            // 'days' array usually maps 1-to-1 with indices.
+            // calculatedDate = startDate + index.
         }
     }, [startDate, endDate]);
+
+    // Handle Day Reorder
+    const onDayReorder = (newOrder) => {
+        setOrderedDayKeys(newOrder);
+    };
+
+    // When drag ends, we commit the change
+    const onDayDragEnd = () => {
+        if (onReorderDays) {
+            onReorderDays(orderedDayKeys);
+            // After backend update, the data associated with "Day 1" key will change (swap).
+            // We typically want to reset the keys to natural order "Day 1", "Day 2" 
+            // because "Day 1" (Key) is now intellectually "Day 1" (Visual) again.
+            // However, if we reset immediately, we might flicker. 
+            // Let's assume onReorderDays triggers a data refresh that might eventually reset this via parent props?
+            // No, parent props startDate/endDate might not change.
+            // So we should reset orderedDayKeys effectively to ["Day 1", "Day 2"...] 
+            // BUT only after we are sure the data has swapped? 
+            // Actually, if we just fire-and-forget, the UI stays as ["Day 2", "Day 1"].
+            // "Day 2" key is in pos 0. "Day 2" data is content of old Day 2.
+            // If backend swaps content: "Day 2" key now has old Day 1 content? 
+            // Wait, backend logic: "Day 2" object renamed to "Day 1".
+            // So `itineraryData["Day 1"]` now holds the Yangmingshan content.
+            // `itineraryData["Day 2"]` now holds Taipei 101.
+            // Our local `orderedDayKeys` is `["Day 2", "Day 1"]`.
+            // Pos 0 renders Key "Day 2". It pulls `itineraryData["Day 2"]` (Taipei 101).
+            // Pos 1 renders Key "Day 1". It pulls `itineraryData["Day 1"]` (Yangmingshan).
+            // VISUAL: Pos 0 = Taipei 101. Pos 1 = Yangmingshan.
+            // BEFORE SWAP: Pos 0 (Day 1) was Taipei 101.
+            // RESULT: NO CHANGE visible!
+
+            // FIX: We MUST reset orderedDayKeys to natural order after swap.
+            // Because we renamed the underlying keys in the DB.
+
+            setTimeout(() => {
+                setOrderedDayKeys(prev => [...prev].sort((a, b) => {
+                    // Sort by number "Day X"
+                    const numA = parseInt(a.split(' ')[1]);
+                    const numB = parseInt(b.split(' ')[1]);
+                    return numA - numB;
+                }));
+            }, 200); // Small delay to allow backend update to proprietary propagate or just optimistic reset
+        }
+    };
 
     // Check days scroll
     useEffect(() => {
@@ -390,9 +481,17 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                 <div className="relative z-20">
                     <DatePicker
                         selectsRange={true}
-                        startDate={startDate}
-                        endDate={endDate}
-                        onChange={(update) => setDateRange(update)}
+                        startDate={tempStartDate}
+                        endDate={tempEndDate}
+                        onChange={(update) => {
+                            const [start, end] = update;
+                            setTempStartDate(start);
+                            setTempEndDate(end);
+
+                            if (start && end) {
+                                onUpdateDateRange(start, end);
+                            }
+                        }}
                         customInput={<CustomDateInput />}
                         dateFormat="M/d"
                     />
@@ -400,9 +499,12 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
             </div>
 
             {/* Days List */}
-            <div
+            <Reorder.Group
+                axis="x"
+                values={orderedDayKeys}
+                onReorder={onDayReorder}
                 ref={daysListRef}
-                className="flex gap-3 px-4 py-3 bg-transparent overflow-x-auto no-scrollbar"
+                className="flex gap-3 px-4 py-3 bg-transparent overflow-x-auto no-scrollbar list-none"
                 style={{
                     maskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
                     WebkitMaskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
@@ -413,22 +515,36 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                     setDaysAtEnd((scrollWidth - clientWidth - scrollLeft) <= 5);
                 }}
             >
-                {days.map(day => (
-                    <button
-                        key={day.id}
-                        onClick={() => onDayChange(day.id)}
-                        className={`
-                            px-3 py-1.5 rounded-xl flex flex-col items-center min-w-[70px] cursor-pointer transition-all duration-200 shrink-0
-                            ${activeDay === day.id
-                                ? 'bg-teal-50 border border-primary text-primary'
-                                : 'bg-slate-100 border border-transparent text-ink-muted hover:bg-slate-200'}
-                        `}
-                    >
-                        <span className="text-xl font-bold">{day.label}</span>
-                        <span className="text-xs opacity-80">{day.dateStr}</span>
-                    </button>
-                ))}
-            </div>
+                {orderedDayKeys.map((dayKey, index) => {
+                    // Display Label is purely based on Current Index
+                    const label = `${index + 1}`;
+                    const date = addDays(startDate, index);
+                    const dateStr = format(date, 'M/d');
+
+                    return (
+                        <Reorder.Item
+                            key={dayKey}
+                            value={dayKey}
+                            onDragEnd={onDayDragEnd}
+                            whileDrag={{ scale: 1.1 }}
+                            className="shrink-0"
+                        >
+                            <button
+                                onClick={() => onDayChange(dayKey)}
+                                className={`
+                                    w-16 h-16 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-200
+                                    ${activeDay === dayKey
+                                        ? 'bg-teal-50 border-2 border-primary text-primary shadow-md transform scale-105'
+                                        : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
+                                `}
+                            >
+                                <span className="text-xl font-bold">{label}</span>
+                                <span className="text-xs opacity-80">{dateStr}</span>
+                            </button>
+                        </Reorder.Item>
+                    );
+                })}
+            </Reorder.Group>
 
             {/* Timeline */}
             <div
@@ -487,6 +603,7 @@ export default function ItineraryPanel({ activeDay, onDayChange, itineraryData, 
                                         onUpdateStayDuration={onUpdateStayDuration}
                                         activeDay={activeDay}
                                         onUpdateTransportMode={onUpdateTransportMode}
+                                        onRemoveItem={onRemoveItem}
                                     />
                                 ))}
                             </Reorder.Group>

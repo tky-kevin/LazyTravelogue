@@ -129,6 +129,49 @@ export function useItineraryActions() {
         handleUpdateItinerary(dayId, updatedItems);
     }, [currentItinerary, patchItinerary, updateItinerary]); // Dependencies
 
+    const handleUpdateDateRange = useCallback((newStartDate, newEndDate) => {
+        if (!currentItinerary) return;
+
+        // Calculate days difference
+        const dayCount = Math.ceil((newEndDate - newStartDate) / (1000 * 60 * 60 * 24)) + 1;
+        const currentDays = currentItinerary.days || [];
+
+        // Create new Days array
+        // We preserve existing days up to the new count.
+        // If we have fewer days than before, they are truncated (activities lost for those days).
+        // If we have more, we append empty days.
+
+        const newDays = Array.from({ length: dayCount }, (_, i) => {
+            if (i < currentDays.length) {
+                // Keep existing day data (activities & id)
+                // We might want to update the 'date' field if it stores "Day X" or actual date string
+                // Based on models.py, 'date' is string. Let's ensure it stays consistent.
+                const existing = currentDays[i];
+                return {
+                    ...existing,
+                    date: `Day ${i + 1}` // Enforce Day X format consistency
+                };
+            } else {
+                // New Day
+                return {
+                    id: `day-${Date.now()}-${i}`,
+                    date: `Day ${i + 1}`,
+                    activities: []
+                };
+            }
+        });
+
+        const payload = {
+            start_date: newStartDate.toISOString(),
+            end_date: newEndDate.toISOString(),
+            days: newDays
+        };
+
+        if (patchItinerary) patchItinerary(currentItinerary._id || currentItinerary.id, payload);
+        else updateItinerary(currentItinerary._id || currentItinerary.id, payload);
+
+    }, [currentItinerary, patchItinerary, updateItinerary]);
+
     const handleDirectionsError = useCallback((dayId, fromItemId, status) => {
         if (!currentItinerary) return;
 
@@ -141,9 +184,47 @@ export function useItineraryActions() {
                     item.id === fromItemId ? { ...item, transportMode: 'WALKING' } : item
                 );
                 handleUpdateItinerary(dayId, updatedItems);
+                handleUpdateItinerary(dayId, updatedItems);
             }
         }
     }, [currentItinerary, patchItinerary, updateItinerary]);
+
+    const handleReorderDays = useCallback((newDayOrder) => {
+        // newDayOrder is an array of IDs/Keys like ["Day 2", "Day 1", "Day 3"]
+        // corresponding to the desired order of content.
+
+        if (!currentItinerary || !currentItinerary.days) return;
+
+        const currentDays = currentItinerary.days;
+
+        // Construct new days array based on the visual order
+        const reorderedDays = newDayOrder.map((originalId, index) => {
+            // Find the original day object that was moved to this position
+            const originalDay = currentDays.find(d => d.id === originalId || d.date === originalId);
+
+            if (!originalDay) return null;
+
+            // Important: We aren't just moving the object, we are renaming it to the new position.
+            // e.g. The day object from "Day 2" is moved to index 0. It must become "Day 1".
+            return {
+                ...originalDay,
+                date: `Day ${index + 1}` // Reset the date/label to match the new index
+            };
+        }).filter(Boolean); // Safety filter
+
+        const payload = { days: reorderedDays };
+
+        if (patchItinerary) patchItinerary(currentItinerary._id || currentItinerary.id, payload);
+        else updateItinerary(currentItinerary._id || currentItinerary.id, payload);
+
+    }, [currentItinerary, patchItinerary, updateItinerary]);
+
+    const handleRemoveItem = useCallback((dayId, itemId) => {
+        if (!currentItinerary) return;
+        const currentItems = getDayItems(dayId);
+        const updatedItems = currentItems.filter(item => item.id !== itemId);
+        handleUpdateItinerary(dayId, updatedItems);
+    }, [currentItinerary, handleUpdateItinerary]);
 
     return {
         handleAddLocation,
@@ -151,7 +232,11 @@ export function useItineraryActions() {
         handleUpdateTransportMode,
         handleUpdateStayDuration,
         handleUpdateStartTime,
+        handleUpdateDateRange,
         handleDirectionsFetched,
-        handleDirectionsError
+        handleDirectionsError,
+        handleDirectionsError,
+        handleReorderDays,
+        handleRemoveItem
     };
 }

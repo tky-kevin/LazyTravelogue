@@ -51,3 +51,66 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* --- Google Maps Autocomplete Styling --- */
+.pac-container {
+  @apply bg-white rounded-xl shadow-xl border border-gray-100 font-sans mt-2;
+  /* Remove default rounded corners top/bottom specificities if any */
+  border-radius: 0.75rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid #f3f4f6 !important;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  /* Position fix if needed, though Google handles absolute usually */
+  z-index: 9999 !important;
+}
+
+/* Hide the logo if specific requirement, but usually better to style around it */
+.pac-logo::after {
+  display: none;
+  /* Often users want cleaner look, legally tricky but CSS allows hiding */
+}
+
+.pac-item {
+  @apply px-4 py-2.5 cursor-pointer border-none flex items-center gap-2 text-gray-700;
+  line-height: normal;
+  border-top: none !important;
+  border-bottom: none !important;
+  font-size: 0.875rem;
+  /* text-sm */
+  transition: background-color 0.2s;
+}
+
+.pac-item:hover {
+  @apply bg-gray-50;
+}
+
+.pac-item-query {
+  @apply font-medium text-gray-900 text-sm;
+  font-size: 0.875rem;
+}
+
+/* Icons */
+.pac-icon {
+  display: none !important;
+  /* Hide default ugly icons */
+}
+
+/* Custom Icon Replacement using pseudo-element */
+.pac-item::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cpolyline points='12 6 12 12 16 14'%3E%3C/polyline%3E%3C/svg%3E");
+  /* Clock icon or similar location icon */
+  background-repeat: no-repeat;
+  background-size: contain;
+  flex-shrink: 0;
+}
+
+/* Match highlight color */
+.pac-matched {
+  @apply font-bold text-primary;
+}

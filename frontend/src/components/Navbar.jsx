@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Share2, User, LogOut } from 'lucide-react';
+import { Search, Share2, User, LogOut, X, Clock, History } from 'lucide-react';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
 
@@ -20,6 +20,53 @@ export default function Navbar({ onLocationSelect }) {
 
     const onLoad = (autocomplete) => {
         setSearchResult(autocomplete);
+    };
+
+    // --- Search Improvements ---
+    const [inputValue, setInputValue] = useState("");
+    const [recentSearches, setRecentSearches] = useState([]);
+    const [showRecent, setShowRecent] = useState(false);
+
+    // Load recent searches on mount
+    useEffect(() => {
+        const saved = localStorage.getItem('recent_searches');
+        if (saved) {
+            try {
+                setRecentSearches(JSON.parse(saved).slice(0, 5));
+            } catch (e) { console.error(e); }
+        }
+    }, []);
+
+    const saveRecentSearch = (place) => {
+        const newEntry = {
+            name: place.name,
+            address: place.formatted_address,
+            place_id: place.place_id
+        };
+
+        setRecentSearches(prev => {
+            // Remove dupe by place_id
+            const filtered = prev.filter(p => p.place_id !== place.place_id);
+            const updated = [newEntry, ...filtered].slice(0, 5);
+            localStorage.setItem('recent_searches', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const handleRecentClick = (item) => {
+        // Technically we can't fully emulate an Autocomplete selection without fetching details.
+        // But for UX, we can just populate the input. User still needs to select from Google's list 
+        // to get the full geometry if we assume 'item' is partial.
+        // However, if we want to "Restore" a search, we might need a different flow.
+        // For now: Just populate input and let them click or re-search.
+        setInputValue(item.name);
+        if (searchInputRef.current) searchInputRef.current.focus();
+        setShowRecent(false);
+    };
+
+    const clearSearch = () => {
+        setInputValue("");
+        if (searchInputRef.current) searchInputRef.current.value = "";
     };
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -55,6 +102,11 @@ export default function Navbar({ onLocationSelect }) {
                 rating: place.rating,
                 user_ratings_total: place.user_ratings_total
             });
+
+            // Save to history
+            saveRecentSearch(place);
+            setInputValue(place.name || place.formatted_address);
+            setShowRecent(false);
         } else {
             console.log('Autocomplete is not loaded yet!');
         }
@@ -79,14 +131,53 @@ export default function Navbar({ onLocationSelect }) {
                         onLoad={onLoad}
                         onPlaceChanged={onPlaceChanged}
                     >
-                        <div className="relative">
-                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <div className="relative group">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" />
                             <input
                                 ref={searchInputRef}
                                 type="text"
                                 placeholder="搜尋地點..."
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onFocus={() => setShowRecent(true)}
+                                onBlur={() => setTimeout(() => setShowRecent(false), 200)} // Delay for click
+                                className="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
                             />
+
+                            {/* Clear Button */}
+                            {inputValue && (
+                                <button
+                                    onClick={clearSearch}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 transition-all"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+
+                            {/* Recent Searches Dropdown */}
+                            {showRecent && !inputValue && recentSearches.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 py-2 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                                    <div className="px-4 py-1.5 text-xs font-semibold text-gray-400 flex items-center gap-1">
+                                        <History size={12} />
+                                        <span>最近搜尋</span>
+                                    </div>
+                                    {recentSearches.map((item) => (
+                                        <button
+                                            key={item.place_id}
+                                            onClick={() => handleRecentClick(item)}
+                                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex flex-col gap-0.5 transition-colors group/item"
+                                        >
+                                            <span className="text-sm text-gray-700 font-medium group-hover/item:text-primary transition-colors truncate w-full">
+                                                {item.name}
+                                            </span>
+                                            <span className="text-xs text-gray-400 truncate w-full flex items-center gap-1">
+                                                <Clock size={10} />
+                                                {item.address}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </Autocomplete>
                 )}
