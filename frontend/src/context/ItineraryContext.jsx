@@ -24,8 +24,11 @@ export function ItineraryProvider({ children }) {
             setLoading(true);
             const res = await client.post('/auth/google', { credential: googleResponse.credential });
             // Backend sets Cookie "access_token"
-            const { user: userData } = res.data;
+            const { user: userData, access_token } = res.data;
 
+            if (access_token) {
+                localStorage.setItem('access_token', access_token);
+            }
             localStorage.setItem('user_data', JSON.stringify(userData));
             setUser(userData);
             await fetchItineraries();
@@ -45,6 +48,7 @@ export function ItineraryProvider({ children }) {
 
         googleLogout();
         localStorage.removeItem('user_data');
+        localStorage.removeItem('access_token');
         setUser(null);
         setItineraries([]);
         setCurrentItinerary(null);

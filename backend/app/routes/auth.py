@@ -63,6 +63,7 @@ async def google_login(request: GoogleAuthRequest, response: Response):
 
         return {
             "message": "Login successful",
+            "access_token": access_token,
             "user": {"name": name, "email": email, "picture": picture},
         }
 

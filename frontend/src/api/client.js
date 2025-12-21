@@ -10,6 +10,15 @@ const client = axios.create({
     },
 });
 
+// Request Interceptor: Attach Token if available (Fix for Incognito/Cross-Site)
+client.interceptors.request.use((config) => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
 // Response Interceptor: Handle 401 (Logout)
 client.interceptors.response.use(
     (response) => response,
