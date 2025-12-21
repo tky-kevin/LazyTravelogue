@@ -599,7 +599,7 @@ const TimeSelector = ({ value, onChange, onClose }) => {
         >
             <div className="flex items-center justify-between border-b border-gray-50 pb-2">
                 <span className="text-xs font-bold text-gray-400">設定時間</span>
-                <span className="text-sm font-black text-primary font-mono">{selectedHours}:{selectedMinutes}</span>
+                <span className="text-sm font-black text-primary">{selectedHours}:{selectedMinutes}</span>
             </div>
 
             <div className="flex h-48 gap-2 relative">
@@ -1055,7 +1055,7 @@ export default function ItineraryPanel({
             <div className="py-4 bg-transparent flex justify-between items-center">
                 <div className="flex flex-col flex-1 mr-4">
                     <input
-                        className="font-serif text-xl leading-none bg-transparent border-b border-transparent focus:border-ink-border focus:bg-surface-alt/50 transition-all outline-none text-ink placeholder-ink-muted/50 w-full px-1 -ml-1 rounded"
+                        className="font-sans text-xl leading-none bg-transparent border-b border-transparent focus:border-ink-border focus:bg-surface-alt/50 transition-all outline-none text-ink placeholder-ink-muted/50 w-full px-1 -ml-1 rounded"
                         value={localTitle}
                         onChange={(e) => {
                             setLocalTitle(e.target.value);
@@ -1250,12 +1250,6 @@ export default function ItineraryPanel({
                             </motion.div>
                         )}
                     </AnimatePresence>
-
-                    {localItems.length > 0 && (
-                        <div className="mt-8 text-center font-hand text-2xl text-ink-muted -rotate-2">
-                            本日行程結束 ~
-                        </div>
-                    )}
                 </div>
             </div>
 
