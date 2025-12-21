@@ -1,9 +1,14 @@
+import os
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+
+# Build path fix for Vercel
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.database import close_mongo_connection, connect_to_mongo
 from app.routes import auth, itinerary, assistant
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
