@@ -2,6 +2,18 @@
 name = "lazytravelogue-backend"
 version = "0.1.0"
 requires-python = ">=3.9"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "motor",
+    "python-dotenv",
+    "pydantic",
+    "google-auth",
+    "requests",
+    "pyjwt",
+    "httpx",
+    "google-generativeai"
+]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
