@@ -12,7 +12,8 @@ dependencies = [
     "requests",
     "pyjwt",
     "httpx",
-    "google-generativeai"
+    "google-generativeai",
+    "email-validator"
 ]
 
 [tool.ruff]
