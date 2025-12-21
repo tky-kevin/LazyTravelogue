@@ -31,12 +31,12 @@ const getTransportIcon = (mode) => {
 // Custom Input for DatePicker
 const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
     <button
-        className="flex items-center gap-2 px-3 py-2 bg-white border border-ink-border rounded-xl text-ink text-sm shadow-sm transition-colors hover:bg-surface-alt font-sans"
+        className="group flex items-center gap-2.5 px-4 py-2 bg-white/50 backdrop-blur-sm border border-ink-border rounded-2xl text-ink text-sm shadow-sm transition-all hover:bg-white hover:border-primary/30 hover:shadow-md active:scale-95 font-sans"
         onClick={onClick}
         ref={ref}
     >
-        <CalendarIcon size={16} className="text-primary" />
-        <span>{value || '選擇日期'}</span>
+        <CalendarIcon size={16} className="text-primary transition-transform group-hover:scale-110" />
+        <span className="font-medium">{value || '選擇日期'}</span>
     </button>
 ));
 
@@ -250,19 +250,28 @@ export default function ItineraryPanel({
     onUpdateStartTime,
     onUpdateStayDuration,
     onReorderDays,
-    onRemoveItem
+    onRemoveItem,
+    currentItineraryTitle,
+    onUpdateItineraryTitle,
+    days = [],
+    activeDayLabel
 }) {
     // Removed local dateRange state in favor of props
     // BUT we need local state for the DatePicker to be responsive during selection (before end date is picked)
     const [tempStartDate, setTempStartDate] = useState(startDate);
     const [tempEndDate, setTempEndDate] = useState(endDate);
+    const [localTitle, setLocalTitle] = useState(currentItineraryTitle || "");
 
     useEffect(() => {
         setTempStartDate(startDate);
         setTempEndDate(endDate);
     }, [startDate, endDate]);
 
-    const [days, setDays] = useState([]);
+    useEffect(() => {
+        setLocalTitle(currentItineraryTitle || "");
+    }, [currentItineraryTitle]);
+
+
 
     // Local State for Drag & Drop Performance
     const [localItems, setLocalItems] = useState([]);
@@ -348,68 +357,32 @@ export default function ItineraryPanel({
     const [orderedDayKeys, setOrderedDayKeys] = useState([]);
 
     useEffect(() => {
-        if (startDate && endDate) {
-            const dayCount = differenceInDays(endDate, startDate) + 1;
-            // When date range changes, we want to regenerate the keys if count differs significantly
-            // or if initialization.
-            // For simplicity, we regenerate if length doesn't match, preserving existing keys order if possible?
-            // Actually, simplest is to reset if length changes to match new structure.
-            // If user just swaps days, length is same, this won't trigger if dates don't change.
-            // But if dates change, we probably reset order.
+        if (days && days.length > 0) {
+            const dayIds = days.map(d => d.id);
+            // Frequency of backend updates can cause jitter. 
+            // We only sync if the set or order of IDs actually changed.
+            const isSame = dayIds.length === orderedDayKeys.length &&
+                dayIds.every((id, idx) => id === orderedDayKeys[idx]);
 
-            setOrderedDayKeys(prev => {
-                if (prev.length === dayCount) return prev; // Keep order if same length (e.g. date shift but same duration? uncertain)
-                // Actually safer to reset specific to current range size
-                return Array.from({ length: dayCount }, (_, i) => `Day ${i + 1}`);
-            });
-
-            // We still need the 'days' array for metadata like dateStr BUT
-            // 'days' array usually maps 1-to-1 with indices.
-            // calculatedDate = startDate + index.
+            if (!isSame) {
+                setOrderedDayKeys(dayIds);
+            }
         }
-    }, [startDate, endDate]);
+    }, [days]);
 
     // Handle Day Reorder
     const onDayReorder = (newOrder) => {
         setOrderedDayKeys(newOrder);
+
+        // If the active day moved, ensuring focus follows it is handled 
+        // by the fact that activeDay is a stable ID.
     };
 
     // When drag ends, we commit the change
     const onDayDragEnd = () => {
         if (onReorderDays) {
             onReorderDays(orderedDayKeys);
-            // After backend update, the data associated with "Day 1" key will change (swap).
-            // We typically want to reset the keys to natural order "Day 1", "Day 2" 
-            // because "Day 1" (Key) is now intellectually "Day 1" (Visual) again.
-            // However, if we reset immediately, we might flicker. 
-            // Let's assume onReorderDays triggers a data refresh that might eventually reset this via parent props?
-            // No, parent props startDate/endDate might not change.
-            // So we should reset orderedDayKeys effectively to ["Day 1", "Day 2"...] 
-            // BUT only after we are sure the data has swapped? 
-            // Actually, if we just fire-and-forget, the UI stays as ["Day 2", "Day 1"].
-            // "Day 2" key is in pos 0. "Day 2" data is content of old Day 2.
-            // If backend swaps content: "Day 2" key now has old Day 1 content? 
-            // Wait, backend logic: "Day 2" object renamed to "Day 1".
-            // So `itineraryData["Day 1"]` now holds the Yangmingshan content.
-            // `itineraryData["Day 2"]` now holds Taipei 101.
-            // Our local `orderedDayKeys` is `["Day 2", "Day 1"]`.
-            // Pos 0 renders Key "Day 2". It pulls `itineraryData["Day 2"]` (Taipei 101).
-            // Pos 1 renders Key "Day 1". It pulls `itineraryData["Day 1"]` (Yangmingshan).
-            // VISUAL: Pos 0 = Taipei 101. Pos 1 = Yangmingshan.
-            // BEFORE SWAP: Pos 0 (Day 1) was Taipei 101.
-            // RESULT: NO CHANGE visible!
-
-            // FIX: We MUST reset orderedDayKeys to natural order after swap.
-            // Because we renamed the underlying keys in the DB.
-
-            setTimeout(() => {
-                setOrderedDayKeys(prev => [...prev].sort((a, b) => {
-                    // Sort by number "Day X"
-                    const numA = parseInt(a.split(' ')[1]);
-                    const numB = parseInt(b.split(' ')[1]);
-                    return numA - numB;
-                }));
-            }, 200); // Small delay to allow backend update to proprietary propagate or just optimistic reset
+            // No more setTimeout/sort! The button stays where the user dropped it.
         }
     };
 
@@ -424,7 +397,7 @@ export default function ItineraryPanel({
         };
         const timer = setTimeout(checkDaysScroll, 50);
         return () => clearTimeout(timer);
-    }, [days]);
+    }, [orderedDayKeys]);
 
     // Wheel Listeners
     useEffect(() => {
@@ -466,16 +439,24 @@ export default function ItineraryPanel({
             if (daysContainer) daysContainer.removeEventListener('wheel', handleDaysWheel);
             if (timelineContainer) timelineContainer.removeEventListener('wheel', handleTimelineWheel);
         };
-    }, [days, localItems, activeDay]);
+    }, [orderedDayKeys, localItems, activeDay]);
 
     return (
         <div className="h-full flex flex-col bg-transparent overflow-hidden">
             {/* Header */}
             <div className="py-4 bg-transparent flex justify-between items-center">
-                <div className="flex flex-col">
-                    <h2 className="font-serif text-xl leading-none">行程表</h2>
+                <div className="flex flex-col flex-1 mr-4">
+                    <input
+                        className="font-serif text-xl leading-none bg-transparent border-b border-transparent focus:border-ink-border focus:bg-surface-alt/50 transition-all outline-none text-ink placeholder-ink-muted/50 w-full px-1 -ml-1 rounded"
+                        value={localTitle}
+                        onChange={(e) => {
+                            setLocalTitle(e.target.value);
+                            onUpdateItineraryTitle(e.target.value);
+                        }}
+                        placeholder="點擊輸入行程名稱..."
+                    />
                     <span className="text-xs text-ink-muted">
-                        {days.length} 天旅程
+                        {orderedDayKeys.length} 天旅程
                     </span>
                 </div>
                 <div className="relative z-20">
@@ -494,6 +475,9 @@ export default function ItineraryPanel({
                         }}
                         customInput={<CustomDateInput />}
                         dateFormat="M/d"
+                        portalId="root"
+                        popperPlacement="bottom-end"
+                        popperClassName="datepicker-portal"
                     />
                 </div>
             </div>
@@ -525,16 +509,27 @@ export default function ItineraryPanel({
                         <Reorder.Item
                             key={dayKey}
                             value={dayKey}
+                            layout
                             onDragEnd={onDayDragEnd}
-                            whileDrag={{ scale: 1.1 }}
-                            className="shrink-0"
+                            whileDrag={{
+                                scale: 1.15,
+                                zIndex: 50
+                            }}
+                            animate={{
+                                scale: activeDay === dayKey ? 1.05 : 1,
+                                zIndex: activeDay === dayKey ? 10 : 1
+                            }}
+                            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
+                            className="shrink-0 list-none rounded-full"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
                         >
                             <button
                                 onClick={() => onDayChange(dayKey)}
+                                onPointerDown={() => onDayChange(dayKey)} // Set focus immediately on touch/click
                                 className={`
-                                    w-16 h-16 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-200
+                                    w-16 h-16 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-none
                                     ${activeDay === dayKey
-                                        ? 'bg-teal-50 border-2 border-primary text-primary shadow-md transform scale-105'
+                                        ? 'bg-teal-50 border-2 border-primary text-primary shadow-md'
                                         : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
                                 `}
                             >
@@ -566,7 +561,7 @@ export default function ItineraryPanel({
                 <div className="max-w-[400px] mx-auto">
                     <div className="flex items-center justify-center gap-4 mb-6 border-b-2 border-secondary pb-2">
                         <h2 className="font-serif text-3xl text-ink m-0">
-                            {days.find(d => d.id === activeDay)?.label || activeDay}
+                            {activeDayLabel || activeDay}
                         </h2>
 
                         {/* Start Time Picker */}

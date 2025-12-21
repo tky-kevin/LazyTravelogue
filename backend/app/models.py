@@ -73,3 +73,23 @@ class ItineraryUpdate(BaseModel):
     start_times: Optional[Dict[str, str]] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+
+class KnowledgeArticle(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    url: str
+    title: str
+    content_chunk: str
+    embedding: Optional[List[float]] = None # Vector for Atlas Search
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    model_config = ConfigDict(
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "url": "https://example.com/travel-guide",
+                "title": "Taipei Guide",
+                "content_chunk": "Taipei 101 is...",
+                "embedding": [0.1, 0.2, 0.3]
+            }
+        }
+    )

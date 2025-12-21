@@ -56,8 +56,17 @@ export function useItineraryActions() {
         if (mobileViewSetter) mobileViewSetter('list');
     };
 
-    const handleUpdateItinerary = (dayId, newItems) => {
-        if (!currentItinerary || !Array.isArray(currentItinerary.days)) return;
+    const handleUpdateItinerary = (dayId, newItems, overridePayload = null) => {
+        if (!currentItinerary) return;
+
+        // If explicitly updating root properties (like title)
+        if (overridePayload) {
+            if (patchItinerary) patchItinerary(currentItinerary._id || currentItinerary.id, overridePayload);
+            else updateItinerary(currentItinerary._id || currentItinerary.id, overridePayload);
+            return;
+        }
+
+        if (!Array.isArray(currentItinerary.days)) return;
 
         const updatedDays = currentItinerary.days.map(day => {
             if (day.id === dayId || day.date === dayId) {

@@ -3,6 +3,7 @@ import { GoogleMap, useJsApiLoader, InfoWindow, useGoogleMap, Polyline } from '@
 import { Plus } from 'lucide-react';
 import { CANVAS_MAP_STYLE } from './mapStyles';
 import { useRouteCalculator } from '../hooks/useRouteCalculator';
+import { categorizePlace } from '../utils/placeUtils';
 
 // 1. Color Palette for Days
 const DAILY_COLORS = [
@@ -23,8 +24,7 @@ const containerStyle = {
     borderRadius: '12px',
 };
 const center = { lat: 25.0478, lng: 121.5170 };
-const options = {
-    styles: CANVAS_MAP_STYLE,
+const defaultOptions = {
     disableDefaultUI: true,
     zoomControl: false,
     mapTypeControl: false,
@@ -185,7 +185,7 @@ const ManualPolyline = ({ path, options }) => {
     return null;
 };
 
-export default function MapPanel({ selectedLocation, focusedLocation, itineraryData, activeDay, onAddLocation, onDirectionsFetched, onDirectionsError }) {
+export default function MapPanel({ selectedLocation, focusedLocation, itineraryData, days = [], activeDay, activeDayLabel, onLocationSelect, onAddLocation, onDirectionsFetched, onDirectionsError }) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
@@ -198,19 +198,65 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     const [renderedRoutes, setRenderedRoutes] = useState({}); // key -> routeResult
     const { getRoute } = useRouteCalculator();
 
+    // Map View State
+    const [mapCenter, setMapCenter] = useState(center);
+    const [mapZoom, setMapZoom] = useState(13);
+
+    // Map Layers State
+    const [layers, setLayers] = useState({
+        poi: true,      // Attractions / General POI
+        business: true, // Shops / Restaurants
+        transit: true,  // Transit Stations
+        park: true      // Parks
+    });
+
+    const toggleLayer = (layer) => {
+        setLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
+    };
+
+    // Construct dynamic styles based on layer visibility
+    const dynamicStyles = useMemo(() => {
+        return CANVAS_MAP_STYLE.map(style => {
+            // General POI Labels/Icons
+            if (style.featureType === 'poi' || style.featureType === 'all' && style.elementType === 'labels.icon') {
+                if (style.featureType === 'poi' && !layers.poi) return { ...style, stylers: [{ visibility: 'off' }] };
+                if (style.elementType === 'labels.icon' && !layers.poi && !layers.business) return { ...style, stylers: [{ visibility: 'off' }] };
+            }
+            // Specific overrides
+            if (style.featureType === 'poi.business' && !layers.business) return { ...style, stylers: [{ visibility: 'off' }] };
+            if (style.featureType?.startsWith('transit') && !layers.transit) return { ...style, stylers: [{ visibility: 'off' }] };
+            if (style.featureType === 'poi.park' && !layers.park) return { ...style, stylers: [{ visibility: 'off' }] };
+
+            return style;
+        }).concat([
+            // Ensure business/transit visibility is explicitly handled if not in base style
+            { featureType: 'poi.business', elementType: 'labels', stylers: [{ visibility: layers.business ? 'on' : 'off' }] },
+            { featureType: 'poi.business', elementType: 'labels.icon', stylers: [{ visibility: layers.business ? 'on' : 'off' }] },
+            { featureType: 'poi.attraction', elementType: 'labels', stylers: [{ visibility: layers.poi ? 'on' : 'off' }] },
+            { featureType: 'poi.park', elementType: 'labels', stylers: [{ visibility: layers.park ? 'on' : 'off' }] },
+            { featureType: 'transit.station', elementType: 'labels', stylers: [{ visibility: layers.transit ? 'on' : 'off' }] },
+            { featureType: 'transit.station', elementType: 'labels.icon', stylers: [{ visibility: layers.transit ? 'on' : 'off' }] },
+        ]);
+    }, [layers]);
+
+    const activeOptions = useMemo(() => ({
+        ...defaultOptions,
+        styles: dynamicStyles
+    }), [dynamicStyles]);
+
     // Transform props to renderable list
     const mapData = useMemo(() => {
-        if (!itineraryData) return [];
-        return Object.entries(itineraryData).map(([dayId, items], index) => ({
-            day: dayId,
+        if (!days || days.length === 0) return [];
+        return days.map((day, index) => ({
+            day: day.id,
             color: getColorForDay(index),
-            locations: items.map(item => ({
+            locations: (day.activities || []).map(item => ({
                 ...item,
                 lat: parseFloat(item.lat),
                 lng: parseFloat(item.lng)
             }))
         }));
-    }, [itineraryData]);
+    }, [days]);
 
     const onLoad = useCallback((map) => {
         mapRef.current = map;
@@ -219,6 +265,36 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     const onUnmount = useCallback(() => {
         mapRef.current = null;
     }, []);
+
+    const onMapClick = useCallback((e) => {
+        if (e.placeId && onLocationSelect) {
+            e.stop?.(); // Prevent standard Google POI info window
+
+            if (!mapRef.current) return;
+            const service = new window.google.maps.places.PlacesService(mapRef.current);
+
+            service.getDetails({
+                placeId: e.placeId,
+                fields: ['name', 'geometry', 'formatted_address', 'place_id', 'rating', 'user_ratings_total', 'types']
+            }, (place, status) => {
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
+                    onLocationSelect({
+                        lat: place.geometry.location.lat(),
+                        lng: place.geometry.location.lng(),
+                        name: place.name,
+                        fullAddress: place.formatted_address,
+                        placeId: place.place_id,
+                        rating: place.rating,
+                        user_ratings_total: place.user_ratings_total,
+                        category: categorizePlace(place.types)
+                    });
+                }
+            });
+        } else {
+            // Option: Clear selection if clicking empty map
+            // onLocationSelect?.(null);
+        }
+    }, [onLocationSelect]);
 
     // Effect: Fetch Routes Imperatively
     useEffect(() => {
@@ -261,20 +337,29 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     }, [isLoaded, mapData, getRoute, onDirectionsFetched, onDirectionsError]);
 
 
-    // Effect: Pan to Selected/Focused
+    // Simplified View Logic: We only move programmatically via refs to ensure smoothness
     useEffect(() => {
         if (isLoaded && mapRef.current) {
             if (selectedLocation) {
-                mapRef.current.panTo({ lat: selectedLocation.lat, lng: selectedLocation.lng });
-                mapRef.current.setZoom(15);
-                setInfoWindowOpen('search-result'); // Auto-open info window
+                const target = { lat: selectedLocation.lat, lng: selectedLocation.lng };
+                setInfoWindowOpen('search-result');
+                mapRef.current.panTo(target);
+
+                // Only zoom in if we are too far out
+                if (mapRef.current.getZoom() < 15) {
+                    mapRef.current.setZoom(15);
+                }
             } else if (focusedLocation) {
-                mapRef.current.panTo({ lat: parseFloat(focusedLocation.lat), lng: parseFloat(focusedLocation.lng) });
-                mapRef.current.setZoom(16);
+                const target = { lat: parseFloat(focusedLocation.lat), lng: parseFloat(focusedLocation.lng) };
                 setInfoWindowOpen(`existing-${focusedLocation.id}`);
+                mapRef.current.panTo(target);
+
+                if (mapRef.current.getZoom() < 16) {
+                    mapRef.current.setZoom(16);
+                }
             }
         }
-    }, [isLoaded, selectedLocation, focusedLocation]);
+    }, [isLoaded, selectedLocation?.placeId, focusedLocation?.id]);
 
     if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
         return <div className="p-8 text-center text-gray-500">Missing API Key</div>;
@@ -286,12 +371,46 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         <div className="h-full w-full rounded-xl shadow-inner border border-gray-200 overflow-hidden">
             <GoogleMap
                 mapContainerStyle={containerStyle}
-                center={center}
-                zoom={13}
+                center={mapCenter}
+                zoom={mapZoom}
                 onLoad={onLoad}
                 onUnmount={onUnmount}
-                options={options}
+                options={activeOptions}
+                onClick={onMapClick}
+                onIdle={() => {
+                    if (mapRef.current) {
+                        const newCenter = {
+                            lat: mapRef.current.getCenter().lat(),
+                            lng: mapRef.current.getCenter().lng()
+                        };
+                        setMapCenter(newCenter);
+                        setMapZoom(mapRef.current.getZoom());
+                    }
+                }}
             >
+                {/* Layer Toggles UI */}
+                <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-2 max-w-[280px]">
+                    {[
+                        { id: 'poi', label: '景點', icon: '🏛️' },
+                        { id: 'business', label: '商店', icon: '🛍️' },
+                        { id: 'transit', label: '交通', icon: '🚇' },
+                        { id: 'park', label: '公園', icon: '🌳' },
+                    ].map(layer => (
+                        <button
+                            key={layer.id}
+                            onClick={() => toggleLayer(layer.id)}
+                            className={`
+                                flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm border
+                                ${layers[layer.id]
+                                    ? 'bg-white border-primary text-primary shadow-md transform scale-105'
+                                    : 'bg-white/90 border-gray-100 text-gray-500 opacity-80 hover:opacity-100'}
+                            `}
+                        >
+                            <span>{layer.icon}</span>
+                            <span>{layer.label}</span>
+                        </button>
+                    ))}
+                </div>
                 {/* Render Routes */}
                 {mapData.map(dayData => (
                     <React.Fragment key={dayData.day}>
@@ -355,7 +474,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                                         className="w-full flex items-center justify-center gap-1 bg-primary text-white py-1.5 rounded text-xs font-medium hover:bg-primary/90 transition-colors"
                                     >
                                         <Plus size={14} />
-                                        加入 {activeDay}
+                                        加入 {activeDayLabel || activeDay}
                                     </button>
                                 </div>
                             </InfoWindow>

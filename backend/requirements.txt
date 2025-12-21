@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+motor
+python-dotenv
+pydantic
+google-auth
+requests
+pyjwt
+httpx
+google-generativeai
+email-validator
+beautifulsoup4
+apscheduler
+lxml

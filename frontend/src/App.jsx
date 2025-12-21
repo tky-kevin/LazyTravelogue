@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Map, List } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
@@ -62,6 +62,11 @@ function App() {
   }, [currentItinerary]);
 
   const startTimes = currentItinerary?.start_times || { "Day 1": "09:00" };
+  const activeDayLabel = useMemo(() => {
+    if (!currentItinerary?.days) return "Day 1";
+    const found = currentItinerary.days.find(d => d.id === activeDay);
+    return found?.date || "Day 1";
+  }, [currentItinerary, activeDay]);
 
   // Calculate Timeline
   const calculatedItinerary = useMemo(() => {
@@ -76,7 +81,14 @@ function App() {
   }, [daysData, startTimes, activeDay]);
 
 
-  // 3. Render Login if no user
+  // Auto-switch to map view when a location is selected (for mobile)
+  useEffect(() => {
+    if (selectedLocation) {
+      setMobileView('map');
+    }
+  }, [selectedLocation]);
+
+  // 4. Main App Render Login if no user
   if (!user) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">
@@ -98,7 +110,6 @@ function App() {
       <Toaster position="top-right" />
       <Navbar onLocationSelect={(loc) => {
         setSelectedLocation(loc);
-        setMobileView('map'); // Switch to map when searching to see the pin
       }} />
 
       <main className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(400px,1fr)_2fr] gap-0 md:gap-8 px-0 md:px-12 pb-0 md:pb-8 overflow-hidden relative">
@@ -108,6 +119,8 @@ function App() {
             activeDay={activeDay}
             onDayChange={setActiveDay}
             itineraryData={calculatedItinerary}
+            activeDayLabel={activeDayLabel}
+            days={currentItinerary?.days || []}
             startDate={currentItinerary?.start_date ? new Date(currentItinerary.start_date) : new Date()}
             endDate={currentItinerary?.end_date ? new Date(currentItinerary.end_date) : new Date()}
             onUpdateDateRange={handleUpdateDateRange}
@@ -116,6 +129,8 @@ function App() {
             startTime={startTimes[activeDay] || '09:00'}
             onUpdateStartTime={handleUpdateStartTime}
             onUpdateItinerary={handleUpdateItinerary}
+            currentItineraryTitle={currentItinerary?.title}
+            onUpdateItineraryTitle={(newTitle) => handleUpdateItinerary(null, null, { title: newTitle })}
             onLocationFocus={(loc) => {
               setFocusedLocation(loc);
               setMobileView('map');
@@ -131,7 +146,10 @@ function App() {
             selectedLocation={selectedLocation}
             focusedLocation={focusedLocation}
             itineraryData={daysData} // Pass RAW data for map
+            days={currentItinerary?.days || []}
             activeDay={activeDay}
+            activeDayLabel={activeDayLabel}
+            onLocationSelect={setSelectedLocation}
             onAddLocation={() => handleAddLocation(setMobileView)}
             onDirectionsFetched={handleDirectionsFetched}
             onDirectionsError={handleDirectionsError}

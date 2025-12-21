@@ -13,17 +13,63 @@ export function ItineraryProvider({ children }) {
     const [user, setUser] = useState(null);
     const [itineraries, setItineraries] = useState([]);
     const [currentItinerary, setCurrentItinerary] = useState(null);
-    const [activeDay, setActiveDay] = useState('Day 1');
+    const [activeDay, setActiveDay] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(false);
 
+    // 1. Definition Phase (Functions)
 
+    const createItinerary = useCallback(async (itineraryData = {}) => {
+        try {
+            const today = new Date().toISOString();
+            const payload = {
+                title: "My Awesome Trip",
+                start_date: today,
+                end_date: today,
+                days: [{ id: "day-1", date: "Day 1", activities: [] }],
+                ...itineraryData
+            };
+
+            const res = await client.post('/api/itineraries', payload);
+            setItineraries(prev => [...prev, res.data]);
+            setCurrentItinerary(res.data);
+            if (res.data.days && res.data.days.length > 0) {
+                setActiveDay(res.data.days[0].id);
+            }
+            toast.success('New itinerary created');
+            return res.data;
+        } catch (error) {
+            console.error("Create Failed", error);
+            toast.error('Failed to create itinerary');
+        }
+    }, [itineraries.length]); // Dependencies if needed
+
+    const fetchItineraries = useCallback(async () => {
+        try {
+            const res = await client.get('/api/itineraries');
+            setItineraries(res.data);
+            if (res.data.length > 0) {
+                const firstItinerary = res.data[0];
+                setCurrentItinerary(firstItinerary);
+                if (firstItinerary.days && firstItinerary.days.length > 0) {
+                    setActiveDay(firstItinerary.days[0].id);
+                }
+            } else {
+                await createItinerary({
+                    title: "My First Trip",
+                    days: [{ id: "day-1", date: "Day 1", activities: [] }]
+                });
+            }
+        } catch (error) {
+            console.error("Fetch Itineraries Failed", error);
+            toast.error('Failed to load itineraries');
+        }
+    }, [createItinerary]);
 
     const login = async (googleResponse) => {
         try {
             setLoading(true);
             const res = await client.post('/auth/google', { credential: googleResponse.credential });
-            // Backend sets Cookie "access_token"
             const { user: userData, access_token } = res.data;
 
             if (access_token) {
@@ -43,7 +89,7 @@ export function ItineraryProvider({ children }) {
 
     const logout = async () => {
         try {
-            await client.post('/auth/logout'); // Tell backend to clear cookie
+            await client.post('/auth/logout');
         } catch (e) { console.error("Logout error", e); }
 
         googleLogout();
@@ -55,76 +101,25 @@ export function ItineraryProvider({ children }) {
         toast.success('Logged out');
     };
 
-    const fetchItineraries = useCallback(async () => {
-        try {
-            const res = await client.get('/api/itineraries');
-            setItineraries(res.data);
-            if (res.data.length > 0) {
-                // Select first one by default for MVP
-                setCurrentItinerary(res.data[0]);
-            } else {
-                // Create default if none with NEW SCHEMA
-                await createItinerary({
-                    title: "My First Trip",
-                    days: [{ id: "day-1", date: "Day 1", activities: [] }]
-                });
-            }
-        } catch (error) {
-            console.error("Fetch Itineraries Failed", error);
-            toast.error('Failed to load itineraries');
-        }
-    }, []);
-
-    const createItinerary = async (itineraryData = {}) => {
-        try {
-            const today = new Date().toISOString();
-            // Default payload with NEW SCHEMA
-            const payload = {
-                title: "My Awesome Trip",
-                start_date: today,
-                end_date: today,
-                days: [{ id: "day-1", date: "Day 1", activities: [] }],
-                ...itineraryData
-            };
-
-            const res = await client.post('/api/itineraries', payload);
-            setItineraries([...itineraries, res.data]);
-            setCurrentItinerary(res.data);
-            toast.success('New itinerary created');
-            return res.data;
-        } catch (error) {
-            console.error("Create Failed", error);
-            toast.error('Failed to create itinerary');
-        }
-    };
-
     const updateItinerary = async (id, updates) => {
         if (!currentItinerary) return;
-
-        // Merge updates with current state to create full object
         const updatedItinerary = { ...currentItinerary, ...updates };
-
-        // Optimistic Update
         setCurrentItinerary(updatedItinerary);
+        setItineraries(prev => prev.map(it => (it._id || it.id) === id ? updatedItinerary : it));
 
         try {
-            // Send FULL object because PUT requires all fields
             await client.put(`/api/itineraries/${id}`, updatedItinerary);
         } catch (error) {
             console.error("Update Failed", error);
             toast.error('Failed to save changes');
-            // Revert? (Not implemented for simplicity)
         }
     };
 
     const patchItinerary = async (id, updates) => {
         if (!currentItinerary) return;
-
-        // Optimistic Update locally
-        // We need to carefully merge "updates" into currentItinerary
-        // Since "updates" might be { days: [...] } or { title: "..." }
         const updatedItinerary = { ...currentItinerary, ...updates };
         setCurrentItinerary(updatedItinerary);
+        setItineraries(prev => prev.map(it => (it._id || it.id) === id ? updatedItinerary : it));
 
         try {
             await client.patch(`/api/itineraries/${id}`, updates);
@@ -134,10 +129,65 @@ export function ItineraryProvider({ children }) {
         }
     };
 
-    // Initial Load / Auth Check
-    // Use a ref to track if we've already started fetching to prevent strict mode double-tap
-    const initialFetchDone = useRef(false);
+    const deleteItinerary = async (id) => {
+        try {
+            await client.delete(`/api/itineraries/${id}`);
+            const updatedList = itineraries.filter(it => (it._id || it.id) !== id);
+            setItineraries(updatedList);
 
+            if (currentItinerary && (currentItinerary._id || currentItinerary.id) === id) {
+                if (updatedList.length > 0) {
+                    setCurrentItinerary(updatedList[0]);
+                } else {
+                    await createItinerary({
+                        title: "My First Trip",
+                        days: [{ id: "day-1", date: "Day 1", activities: [] }]
+                    });
+                }
+            }
+            toast.success('Itinerary deleted');
+        } catch (error) {
+            console.error("Delete Failed", error);
+            toast.error('Failed to delete itinerary');
+        }
+    };
+
+    const replaceItinerary = async (newData) => {
+        if (!currentItinerary) return;
+        const id = currentItinerary._id || currentItinerary.id;
+        const planDaysCount = newData.days?.length || 1;
+        const startDate = currentItinerary.start_date
+            ? new Date(currentItinerary.start_date)
+            : new Date();
+
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + planDaysCount - 1);
+
+        try {
+            const updatePayload = {
+                ...newData,
+                start_date: startDate.toISOString(),
+                end_date: endDate.toISOString(),
+                user_id: user?.email
+            };
+
+            const res = await client.put(`/api/itineraries/${id}`, updatePayload);
+            setCurrentItinerary(res.data);
+            setItineraries(prev => prev.map(it => (it._id || it.id) === id ? res.data : it));
+
+            if (res.data.days && res.data.days.length > 0) {
+                setActiveDay(res.data.days[0].id);
+            }
+            toast.success('Itinerary replaced with AI plan');
+        } catch (error) {
+            console.error("Replace Failed", error);
+            toast.error('Failed to import plan');
+        }
+    };
+
+    // 2. Lifecycle Phase (Hooks)
+
+    const initialFetchDone = useRef(false);
     useEffect(() => {
         const userData = localStorage.getItem('user_data');
         if (userData && !initialFetchDone.current) {
@@ -146,6 +196,18 @@ export function ItineraryProvider({ children }) {
             fetchItineraries();
         }
     }, [fetchItineraries]);
+
+    useEffect(() => {
+        if (currentItinerary) {
+            if (currentItinerary.days && currentItinerary.days.length > 0) {
+                // Only sync activeDay if it's currently null or not in the new itinerary
+                const dayExists = currentItinerary.days.some(d => d.id === activeDay);
+                if (!activeDay || !dayExists) {
+                    setActiveDay(currentItinerary.days[0].id);
+                }
+            }
+        }
+    }, [currentItinerary?._id, currentItinerary?.id]);
 
     const value = {
         user,
@@ -159,6 +221,8 @@ export function ItineraryProvider({ children }) {
         createItinerary,
         updateItinerary,
         patchItinerary,
+        deleteItinerary,
+        replaceItinerary,
         setCurrentItinerary,
         setActiveDay,
         setSelectedLocation

@@ -4,17 +4,47 @@ import { motion, AnimatePresence } from 'framer-motion';
 import client from '../api/client';
 import { useItinerary } from '../context/ItineraryContext';
 
+const ItineraryPreview = ({ plan, onImport }) => {
+    return (
+        <div className="mt-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <h4 className="font-bold text-indigo-900 text-sm mb-1">{plan.title}</h4>
+            <p className="text-xs text-indigo-700 mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
+            <div className="max-h-32 overflow-y-auto mb-3 space-y-1 pr-1">
+                {plan.days.map((day, dIdx) => (
+                    <div key={dIdx} className="text-[0.7rem] bg-white/50 p-1.5 rounded flex flex-col gap-0.5">
+                        <span className="font-bold text-indigo-600">{day.date}</span>
+                        <div className="flex flex-wrap gap-1">
+                            {day.activities.slice(0, 3).map((act, aIdx) => (
+                                <span key={aIdx} className="bg-white px-1.5 rounded border border-indigo-50 text-gray-600">
+                                    {act.title}
+                                </span>
+                            ))}
+                            {day.activities.length > 3 && <span className="text-gray-400">...</span>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <button
+                onClick={onImport}
+                className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+                匯入此行程
+            </button>
+        </div>
+    );
+};
+
 export default function AIAssistant() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: '👋 Hi there! I can help you plan your perfect trip. Where would you like to go next?' }
+        { role: 'assistant', content: '👋 我是你的旅遊小精靈！我可以幫你找景點、美食，也可以直接幫你規劃行程喔！你想去哪裡呢？' }
     ]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef(null);
 
     // Get current itinerary context for smarter answers
-    const { currentItinerary } = useItinerary();
+    const { currentItinerary, replaceItinerary } = useItinerary();
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -32,11 +62,10 @@ export default function AIAssistant() {
         setIsLoading(true);
 
         try {
-            // Prepare context
             const contextData = currentItinerary ? {
                 title: currentItinerary.title,
                 startDate: currentItinerary.start_date,
-                days: Object.keys(currentItinerary.days || {}).length
+                days: currentItinerary.days?.length || 0
             } : null;
 
             const res = await client.post('/api/assistant', {
@@ -45,10 +74,40 @@ export default function AIAssistant() {
             });
 
             const reply = res.data.reply;
-            setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+            const sources = res.data.sources || [];
+
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: reply,
+                sources: sources
+            }]);
         } catch (error) {
             console.error("AI Chat Error", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble connecting to the travel brain right now. Please try again later. 🤖status:503" }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: "抱歉，我現在連線有點問題，請稍後再試。 🤖" }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGeneratePlan = async (destination) => {
+        setIsLoading(true);
+        const userMsg = `幫我規劃去 ${destination} 的行程`;
+        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+
+        try {
+            const res = await client.post('/api/assistant/generate-plan', {
+                destination: destination,
+                days: 3
+            });
+
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: `好的！我為您規劃了 ${destination} 的行程。您可以點擊下方按鈕預覽並匯入我的建議。`,
+                plan: res.data
+            }]);
+        } catch (error) {
+            console.error("Plan Generation Error", error);
+            setMessages(prev => [...prev, { role: 'assistant', content: "生成行程時發生錯誤，請稍後再試。" }]);
         } finally {
             setIsLoading(false);
         }
@@ -146,12 +205,46 @@ export default function AIAssistant() {
                                         lineHeight: '1.4'
                                     }}>
                                         {msg.content}
+                                        {msg.sources && msg.sources.length > 0 && (
+                                            <div className="mt-2 pt-2 border-t border-indigo-50 text-[0.65rem] text-gray-500">
+                                                <p className="font-semibold mb-1">參考來源 (References):</p>
+                                                <ul className="list-disc pl-3 space-y-0.5">
+                                                    {msg.sources.map((src, i) => (
+                                                        <li key={i}>
+                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">
+                                                                {src.title}
+                                                            </a>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {msg.plan && (
+                                            <ItineraryPreview
+                                                plan={msg.plan}
+                                                onImport={() => replaceItinerary(msg.plan)}
+                                            />
+                                        )}
                                     </div>
                                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
                                         {msg.role === 'user' ? 'You' : 'AI'}
                                     </span>
                                 </div>
                             ))}
+
+                            {messages.length === 1 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {['東京', '巴黎', '台北'].map(city => (
+                                        <button
+                                            key={city}
+                                            onClick={() => handleGeneratePlan(city)}
+                                            className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-500 rounded-full text-xs hover:bg-indigo-50 transition-colors shadow-sm font-bold"
+                                        >
+                                            ✨ 規劃 {city}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
 
                             {isLoading && (
                                 <div style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: '10px 14px', borderRadius: '12px 12px 12px 0', boxShadow: 'var(--shadow-sm)' }}>

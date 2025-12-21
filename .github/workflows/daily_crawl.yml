@@ -1,0 +1,46 @@
+name: Daily Travel Crawler
+
+on:
+  schedule:
+    # 每天 UTC 時間 20:00 執行 (台灣時間 04:00)
+    - cron: '0 20 * * *'
+  workflow_dispatch: # 允許手動點擊按鈕觸發
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # 確保安裝 lxml
+        pip install lxml
+        # 安裝 backend 自身作為 package 或是設定 python path
+        # 這裡簡單處理：直接安裝當前目錄作為依賴（如果有 setup.py）或者確保 PYTHONPATH
+
+    - name: Run Crawler Script
+      env:
+        # 這些 Secrets 需要在 GitHub Repo 的 Settings > Secrets and variables > Actions 設定
+        MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      run: |
+        # 設定 PYTHONPATH 包含 backend 目錄，確保 app.services 能被 import
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        
+        # 執行爬蟲，設定上限例如 20 頁，避免跑太久，或者設為 0 跑全部
+        # 建議日常更新跑少量即可 (如 20)
+        python run_full_crawl.py --max 20

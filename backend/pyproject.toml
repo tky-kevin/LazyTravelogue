@@ -13,7 +13,10 @@ dependencies = [
     "pyjwt",
     "httpx",
     "google-generativeai",
-    "email-validator"
+    "email-validator",
+    "beautifulsoup4",
+    "apscheduler",
+    "langchain"
 ]
 
 [tool.ruff]

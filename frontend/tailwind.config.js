@@ -19,6 +19,9 @@ export default {
                     border: '#e2e8f0'   // slate-200
                 }
             },
+            boxShadow: {
+                'datepicker': '0 20px 60px rgba(0, 0, 0, 0.15)',
+            },
             fontFamily: {
                 sans: ['Outfit', 'sans-serif'],
                 serif: ['Playfair Display', 'serif'],

@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import close_mongo_connection, connect_to_mongo
 from app.routes import auth, itinerary, assistant
+from app.scheduler import start_scheduler, shutdown_scheduler
 import os
 from dotenv import load_dotenv
 
@@ -13,8 +14,10 @@ load_dotenv()
 async def lifespan(app: FastAPI):
     # Startup: Connect to DB
     await connect_to_mongo()
+    start_scheduler()
     yield
     # Shutdown: Close DB
+    shutdown_scheduler()
     await close_mongo_connection()
 
 
