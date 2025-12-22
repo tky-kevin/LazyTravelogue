@@ -1,8 +1,52 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, Bot, User } from 'lucide-react';
+import { Sparkles, X, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import client from '../api/client';
 import { useItinerary } from '../context/ItineraryContext';
+
+// Custom Markdown renderer with styling for AI chat
+const MarkdownContent = ({ content }) => {
+    return (
+        <ReactMarkdown
+            components={{
+                // Headings
+                h1: ({ children }) => <h1 className="text-base font-bold mt-2 mb-1">{children}</h1>,
+                h2: ({ children }) => <h2 className="text-sm font-bold mt-2 mb-1">{children}</h2>,
+                h3: ({ children }) => <h3 className="text-sm font-semibold mt-1.5 mb-0.5">{children}</h3>,
+                // Paragraphs
+                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                // Lists
+                ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+                li: ({ children }) => <li className="text-[0.85rem]">{children}</li>,
+                // Bold & Italic
+                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                em: ({ children }) => <em className="italic">{children}</em>,
+                // Code
+                code: ({ children }) => (
+                    <code className="bg-indigo-50 px-1 py-0.5 rounded text-[0.8rem] text-indigo-700">
+                        {children}
+                    </code>
+                ),
+                // Links
+                a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">
+                        {children}
+                    </a>
+                ),
+                // Blockquote
+                blockquote: ({ children }) => (
+                    <blockquote className="border-l-2 border-indigo-200 pl-2 my-1 text-gray-600 italic">
+                        {children}
+                    </blockquote>
+                ),
+            }}
+        >
+            {content}
+        </ReactMarkdown>
+    );
+};
 
 const ItineraryPreview = ({ plan, onImport }) => {
     return (
@@ -57,33 +101,55 @@ export default function AIAssistant() {
         if (!inputMessage.trim()) return;
 
         const userMsg = inputMessage.trim();
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+
+        // Add user message to local state first
+        const newUserMessage = { role: 'user', content: userMsg };
+        setMessages(prev => [...prev, newUserMessage]);
         setInputMessage('');
         setIsLoading(true);
 
         try {
+            // Prepare itinerary context
             const contextData = currentItinerary ? {
                 title: currentItinerary.title,
                 startDate: currentItinerary.start_date,
                 days: currentItinerary.days?.length || 0
             } : null;
 
+            // Build conversation history (exclude the initial greeting and current message)
+            // Only include actual user/assistant exchanges
+            const historyForApi = messages
+                .slice(1) // Skip initial system greeting
+                .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                .map(msg => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
+
             const res = await client.post('/api/assistant', {
                 message: userMsg,
+                history: historyForApi,
                 context: contextData
             });
 
             const reply = res.data.reply;
             const sources = res.data.sources || [];
+            const plan = res.data.plan || null;
+            const suggestions = res.data.suggestions || [];
 
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: reply,
-                sources: sources
+                sources: sources,
+                plan: plan,
+                suggestions: suggestions
             }]);
         } catch (error) {
             console.error("AI Chat Error", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "抱歉，我現在連線有點問題，請稍後再試。 🤖" }]);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: "抱歉，我現在連線有點問題，請稍後再試。 🤖"
+            }]);
         } finally {
             setIsLoading(false);
         }
@@ -108,6 +174,75 @@ export default function AIAssistant() {
         } catch (error) {
             console.error("Plan Generation Error", error);
             setMessages(prev => [...prev, { role: 'assistant', content: "生成行程時發生錯誤，請稍後再試。" }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Handle dynamic suggestion button clicks
+    const handleSuggestionClick = async (suggestion) => {
+        if (suggestion.action === 'generate_plan' && suggestion.destination) {
+            // Trigger plan generation
+            handleGeneratePlan(suggestion.destination);
+        } else if (suggestion.action === 'ask' && suggestion.message) {
+            // Set the message and send
+            setInputMessage(suggestion.message);
+            // Auto-send after a short delay
+            setTimeout(() => {
+                const userMsg = suggestion.message;
+                setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+                setInputMessage('');
+                // Trigger API call
+                sendMessageToApi(userMsg);
+            }, 100);
+        } else if (suggestion.action === 'modify_days' || suggestion.action === 'regenerate') {
+            // Handle modification requests
+            const modifyMsg = suggestion.action === 'modify_days'
+                ? `請改成 ${suggestion.days} 天的行程`
+                : `請以「${suggestion.preferences}」風格重新規劃`;
+            setInputMessage(modifyMsg);
+            setTimeout(() => {
+                setMessages(prev => [...prev, { role: 'user', content: modifyMsg }]);
+                setInputMessage('');
+                sendMessageToApi(modifyMsg);
+            }, 100);
+        }
+    };
+
+    // Separated API call logic for reuse
+    const sendMessageToApi = async (userMsg) => {
+        setIsLoading(true);
+        try {
+            const contextData = currentItinerary ? {
+                title: currentItinerary.title,
+                startDate: currentItinerary.start_date,
+                days: currentItinerary.days?.length || 0
+            } : null;
+
+            const historyForApi = messages
+                .slice(1)
+                .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+                .map(msg => ({ role: msg.role, content: msg.content }));
+
+            const res = await client.post('/api/assistant', {
+                message: userMsg,
+                history: historyForApi,
+                context: contextData
+            });
+
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: res.data.reply,
+                sources: res.data.sources || [],
+                plan: res.data.plan || null,
+                suggestions: res.data.suggestions || []
+            }]);
+        } catch (error) {
+            console.error("AI Chat Error", error);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: "抱歉，我現在連線有點問題，請稍後再試。 🤖"
+            }]);
         } finally {
             setIsLoading(false);
         }
@@ -168,8 +303,7 @@ export default function AIAssistant() {
                                 <Sparkles size={18} />
                             </div>
                             <div>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Travel Assistant</h3>
-                                <p style={{ fontSize: '0.8rem', opacity: 0.9 }}>Powered by LazyTravel AI</p>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
                             </div>
                         </div>
 
@@ -204,10 +338,14 @@ export default function AIAssistant() {
                                         fontSize: '0.9rem',
                                         lineHeight: '1.4'
                                     }}>
-                                        {msg.content}
+                                        {msg.role === 'assistant' ? (
+                                            <MarkdownContent content={msg.content} />
+                                        ) : (
+                                            msg.content
+                                        )}
                                         {msg.sources && msg.sources.length > 0 && (
                                             <div className="mt-2 pt-2 border-t border-indigo-50 text-[0.65rem] text-gray-500">
-                                                <p className="font-semibold mb-1">參考來源 (References):</p>
+                                                <p className="font-semibold mb-1">參考來源：</p>
                                                 <ul className="list-disc pl-3 space-y-0.5">
                                                     {msg.sources.map((src, i) => (
                                                         <li key={i}>
@@ -227,14 +365,30 @@ export default function AIAssistant() {
                                         )}
                                     </div>
                                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
-                                        {msg.role === 'user' ? 'You' : 'AI'}
+                                        {msg.role === 'user' ? '你' : 'AI'}
                                     </span>
+
+                                    {/* Dynamic Suggestions - Show only on the latest AI message */}
+                                    {msg.role === 'assistant' && idx === messages.length - 1 && msg.suggestions && msg.suggestions.length > 0 && !isLoading && (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {msg.suggestions.map((suggestion, sIdx) => (
+                                                <button
+                                                    key={sIdx}
+                                                    onClick={() => handleSuggestionClick(suggestion)}
+                                                    className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-500 rounded-full text-xs hover:bg-indigo-50 transition-colors shadow-sm font-medium"
+                                                >
+                                                    {suggestion.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
 
+                            {/* Initial Quick Actions - Show only on first load */}
                             {messages.length === 1 && (
                                 <div className="flex flex-wrap gap-2 mt-2">
-                                    {['東京', '巴黎', '台北'].map(city => (
+                                    {['台北', '台南', '高雄'].map(city => (
                                         <button
                                             key={city}
                                             onClick={() => handleGeneratePlan(city)}
@@ -270,7 +424,7 @@ export default function AIAssistant() {
                                 value={inputMessage}
                                 onChange={(e) => setInputMessage(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Type a message..."
+                                placeholder="輸入訊息..."
                                 disabled={isLoading}
                                 style={{
                                     flex: 1,

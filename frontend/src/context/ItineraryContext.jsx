@@ -24,7 +24,7 @@ export function ItineraryProvider({ children }) {
         try {
             const today = new Date().toISOString();
             const payload = {
-                title: "My Awesome Trip",
+                title: "我的旅行",
                 start_date: today,
                 end_date: today,
                 days: [{ id: "day-1", date: "Day 1", activities: [] }],
@@ -37,11 +37,11 @@ export function ItineraryProvider({ children }) {
             if (res.data.days && res.data.days.length > 0) {
                 setActiveDay(res.data.days[0].id);
             }
-            toast.success('New itinerary created');
+            toast.success('已建立新行程');
             return res.data;
         } catch (error) {
             console.error("Create Failed", error);
-            toast.error('Failed to create itinerary');
+            toast.error('建立行程失敗');
         }
     }, [itineraries.length]); // Dependencies if needed
 
@@ -57,13 +57,13 @@ export function ItineraryProvider({ children }) {
                 }
             } else {
                 await createItinerary({
-                    title: "My First Trip",
+                    title: "我的第一次旅行",
                     days: [{ id: "day-1", date: "Day 1", activities: [] }]
                 });
             }
         } catch (error) {
             console.error("Fetch Itineraries Failed", error);
-            toast.error('Failed to load itineraries');
+            toast.error('讀取行程失敗');
         }
     }, [createItinerary]);
 
@@ -79,10 +79,10 @@ export function ItineraryProvider({ children }) {
             localStorage.setItem('user_data', JSON.stringify(userData));
             setUser(userData);
             await fetchItineraries();
-            toast.success('Successfully logged in!');
+            toast.success('登入成功！');
         } catch (error) {
             console.error("Login Failed", error);
-            toast.error('Login failed. Please try again.');
+            toast.error('登入失敗，請重試。');
         } finally {
             setLoading(false);
         }
@@ -99,7 +99,7 @@ export function ItineraryProvider({ children }) {
         setUser(null);
         setItineraries([]);
         setCurrentItinerary(null);
-        toast.success('Logged out');
+        toast.success('已登出');
     };
 
     const updateItinerary = async (id, updates) => {
@@ -112,7 +112,7 @@ export function ItineraryProvider({ children }) {
             await client.put(`/api/itineraries/${id}`, updatedItinerary);
         } catch (error) {
             console.error("Update Failed", error);
-            toast.error('Failed to save changes');
+            toast.error('儲存失敗');
         }
     };
 
@@ -126,7 +126,7 @@ export function ItineraryProvider({ children }) {
             await client.patch(`/api/itineraries/${id}`, updates);
         } catch (error) {
             console.error("Patch Failed", error);
-            toast.error('Failed to save changes (Partial)');
+            toast.error('部分儲存失敗');
         }
     };
 
@@ -141,15 +141,15 @@ export function ItineraryProvider({ children }) {
                     setCurrentItinerary(updatedList[0]);
                 } else {
                     await createItinerary({
-                        title: "My First Trip",
+                        title: "我的第一次旅行",
                         days: [{ id: "day-1", date: "Day 1", activities: [] }]
                     });
                 }
             }
-            toast.success('Itinerary deleted');
+            toast.success('行程已刪除');
         } catch (error) {
             console.error("Delete Failed", error);
-            toast.error('Failed to delete itinerary');
+            toast.error('刪除行程失敗');
         }
     };
 
@@ -179,10 +179,10 @@ export function ItineraryProvider({ children }) {
             if (res.data.days && res.data.days.length > 0) {
                 setActiveDay(res.data.days[0].id);
             }
-            toast.success('Itinerary replaced with AI plan');
+            toast.success('AI 行程已匯入！');
         } catch (error) {
             console.error("Replace Failed", error);
-            toast.error('Failed to import plan');
+            toast.error('匯入行程失敗');
         }
     };
 
