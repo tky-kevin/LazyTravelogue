@@ -436,7 +436,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2"
                                     >
                                         <LogOut size={14} />
-                                        Sign Out
+                                        登出
                                     </button>
                                 </div>
                             )}

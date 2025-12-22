@@ -81,7 +81,7 @@ const ItineraryPreview = ({ plan, onImport }) => {
 export default function AIAssistant() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: '👋 我是你的旅遊小精靈！我可以幫你找景點、美食，也可以直接幫你規劃行程喔！你想去哪裡呢？' }
+        { role: 'assistant', content: '👋 **嗨！我是你的旅遊小精靈！**\n\n我可以幫你：\n- 🗺️ 尋找景點\n- 🍜 推薦美食\n- ✨ 直接規劃完整行程\n\n你想去哪裡呢？\n\n> *小提醒：地圖和 AI 免費額度有限，若額度用罄，還請包涵喔！\n(*//▽//*)q*' }
     ]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
