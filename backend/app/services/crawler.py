@@ -74,40 +74,33 @@ async def crawl_and_index(url: str, max_pages: int = 10):
         print(f"Crawler error: {e}")
         return False, str(e)
 
-async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
-    print(f"Reading sitemap: {sitemap_url} (Max new articles: {max_pages if max_pages > 0 else 'Unlimited'})")
+async def collect_urls_from_sitemap(sitemap_url: str) -> list:
+    """從 sitemap 收集所有文章 URL（包含 sub-sitemaps）"""
+    print(f"Reading sitemap: {sitemap_url}")
+    all_urls = []
+    
     try:
         response = requests.get(sitemap_url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'xml')
         
-        # Check for sitemap index
+        # Check for sitemap index (contains <sitemap> tags)
         sitemaps = soup.find_all('sitemap')
         if sitemaps:
             print(f"Found {len(sitemaps)} sub-sitemaps")
-            total_indexed = 0
             for sm in sitemaps:
                 loc = sm.find('loc').text
+                # 只處理 post-sitemap（文章頁面）
                 if "post-sitemap" in loc:
-                    # 傳遞剩餘需要爬取的數量
-                    remaining = max_pages - total_indexed if max_pages > 0 else 0
-                    if max_pages > 0 and remaining <= 0:
-                        break
-                    success, msg = await crawl_sitemap(loc, remaining if max_pages > 0 else 0)
-                    # 從訊息中提取已索引數量
-                    if "Indexed" in msg:
-                        try:
-                            indexed_count = int(msg.split()[1])
-                            total_indexed += indexed_count
-                        except:
-                            pass
-            return True, f"Processed sitemap index, indexed {total_indexed} new articles"
-            
-        urls = soup.find_all('url')
-        print(f"Found {len(urls)} URLs in sitemap")
+                    print(f"  → Processing sub-sitemap: {loc}")
+                    sub_urls = await collect_urls_from_sitemap(loc)
+                    all_urls.extend(sub_urls)
+            return all_urls
         
-        # 解析 URL 和 lastmod，按日期排序（最新的優先）
-        url_entries = []
+        # Regular sitemap with <url> tags
+        urls = soup.find_all('url')
+        print(f"  Found {len(urls)} URLs")
+        
         for url_tag in urls:
             loc = url_tag.find('loc')
             lastmod = url_tag.find('lastmod')
@@ -127,20 +120,44 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
                 else:
                     lastmod_date = datetime.min
                     
-                url_entries.append({
+                all_urls.append({
                     'url': loc.text,
                     'lastmod': lastmod_date
                 })
+                
+        return all_urls
         
-        # 按 lastmod 排序，最新的在前面
-        url_entries.sort(key=lambda x: x['lastmod'], reverse=True)
-        print(f"Sorted {len(url_entries)} URLs by date (newest first)")
+    except Exception as e:
+        print(f"Error reading sitemap {sitemap_url}: {e}")
+        return []
+
+
+async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
+    """爬取 sitemap 中的文章，優先處理最新的"""
+    print(f"="*60)
+    print(f"Starting crawler (Max new articles: {max_pages if max_pages > 0 else 'Unlimited'})")
+    print(f"="*60)
+    
+    try:
+        # Step 1: 收集所有 sub-sitemap 的 URL
+        print("\n[Phase 1] Collecting URLs from all sitemaps...")
+        all_url_entries = await collect_urls_from_sitemap(sitemap_url)
         
-        # 爬取直到達到目標數量或全部完成
+        if not all_url_entries:
+            return False, "No URLs found in sitemap"
+        
+        # Step 2: 全局按日期排序（最新的優先）
+        all_url_entries.sort(key=lambda x: x['lastmod'], reverse=True)
+        print(f"\n[Stats] Total URLs collected: {len(all_url_entries)}")
+        print(f"   Newest: {all_url_entries[0]['lastmod']} - {all_url_entries[0]['url'][:60]}...")
+        print(f"   Oldest: {all_url_entries[-1]['lastmod']} - {all_url_entries[-1]['url'][:60]}...")
+        
+        # Step 3: 爬取直到達到目標數量或全部完成
+        print(f"\n[Phase 2] Crawling new articles...")
         indexed_count = 0
         skipped_count = 0
         
-        for entry in url_entries:
+        for entry in all_url_entries:
             url = entry['url']
             
             # 檢查是否已經索引過
@@ -149,27 +166,33 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
                 continue
             
             # 爬取新文章
-            print(f"[{indexed_count + 1}/{max_pages if max_pages > 0 else '∞'}] Crawling new article: {url}")
+            print(f"\n[{indexed_count + 1}/{max_pages if max_pages > 0 else '∞'}] Crawling: {url}")
             success, msg = await crawl_and_index(url)
             
             if success:
                 indexed_count += 1
-                print(f"  ✓ {msg}")
+                print(f"  [OK] {msg}")
             else:
-                print(f"  ✗ Failed: {msg}")
+                print(f"  [FAIL] {msg}")
             
             # 速度限制：每次爬取後暫停一段時間
-            print(f"  💤 Waiting {CRAWL_DELAY}s before next request...")
+            print(f"  [WAIT] {CRAWL_DELAY}s before next request...")
             await asyncio.sleep(CRAWL_DELAY)
             
             # 檢查是否達到目標數量
             if max_pages > 0 and indexed_count >= max_pages:
-                print(f"Reached target of {max_pages} new articles")
+                print(f"\n[DONE] Reached target of {max_pages} new articles")
                 break
         
         # 總結
+        print(f"\n" + "="*60)
+        print(f"SUMMARY")
+        print(f"="*60)
+        print(f"   New articles indexed: {indexed_count}")
+        print(f"   Already indexed (skipped): {skipped_count}")
+        print(f"   Total in sitemap: {len(all_url_entries)}")
+        
         if indexed_count == 0 and skipped_count > 0:
-            print(f"All {skipped_count} articles already indexed. Nothing new to crawl.")
             return True, f"Indexed 0 new articles (all {skipped_count} already indexed)"
         
         return True, f"Indexed {indexed_count} new articles (skipped {skipped_count} already indexed)"
