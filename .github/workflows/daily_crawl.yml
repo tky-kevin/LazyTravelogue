@@ -41,6 +41,6 @@ jobs:
         # 設定 PYTHONPATH 包含 backend 目錄，確保 app.services 能被 import
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         
-        # 執行爬蟲，設定上限例如 20 頁，避免跑太久，或者設為 0 跑全部
-        # 建議日常更新跑少量即可 (如 20)
+        # 執行爬蟲，每天爬取 20 篇「新」文章（跳過已爬過的）
+        # 優先爬取最新更新的文章，直到達到目標數量或全部爬完
         python run_full_crawl.py --max 20
