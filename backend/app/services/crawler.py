@@ -1,8 +1,12 @@
 import requests
+import asyncio
 from bs4 import BeautifulSoup
 from datetime import datetime
 from app.services.rag_service import index_document
 from app.database import get_database
+
+# 爬蟲設定
+CRAWL_DELAY = 2  # 每次爬取之間的延遲秒數，避免對目標網站造成負擔
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -153,6 +157,10 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
                 print(f"  ✓ {msg}")
             else:
                 print(f"  ✗ Failed: {msg}")
+            
+            # 速度限制：每次爬取後暫停一段時間
+            print(f"  💤 Waiting {CRAWL_DELAY}s before next request...")
+            await asyncio.sleep(CRAWL_DELAY)
             
             # 檢查是否達到目標數量
             if max_pages > 0 and indexed_count >= max_pages:
