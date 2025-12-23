@@ -49,7 +49,7 @@ const DraggableItineraryItem = ({ item, nextItem, index, localItemsLength, dragg
         <Reorder.Item
             value={item}
             className="relative mb-1"
-            dragListener={!readOnly} // Disable default drag on whole item
+            dragListener={false}
             dragControls={dragControls}
             onDragStart={() => !readOnly && setDraggedId(item.id)}
             onDragEnd={() => !readOnly && handleDragEnd()}
