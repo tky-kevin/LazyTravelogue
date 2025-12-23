@@ -33,7 +33,7 @@ export const recalculateDayTimeline = (items, startTimeStr, targetDateStr = null
         const startDate = new Date(currentCursor);
 
         // 2. Activity Duration
-        const stayMinutes = parseInt(item.stayDuration) || 60;
+        const stayMinutes = isNaN(parseInt(item.stayDuration)) ? 60 : parseInt(item.stayDuration);
         const endDate = addMinutes(startDate, stayMinutes);
 
         // 3. Travel Time to Next

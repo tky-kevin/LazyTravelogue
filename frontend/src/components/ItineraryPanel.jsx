@@ -101,6 +101,13 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
         category: item.category
     });
 
+    const [localStayDuration, setLocalStayDuration] = useState(item.stayDuration ?? 60);
+
+    // Update local state when item.stayDuration changes from elsewhere
+    useEffect(() => {
+        setLocalStayDuration(item.stayDuration ?? 60);
+    }, [item.stayDuration]);
+
     useEffect(() => {
         setEditValues({
             title: item.title,
@@ -204,7 +211,7 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
                                 autoFocus
                             />
                         ) : (
-                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate" title={item.title}>
+                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate max-w-[110px] sm:max-w-[160px]" title={item.title}>
                                 {item.title}
                             </h3>
                         )}
@@ -304,8 +311,21 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
                                 ) : (
                                     <input
                                         type="number"
-                                        value={item.stayDuration || 60}
-                                        onChange={(e) => onUpdateStayDuration && onUpdateStayDuration(item.id, e.target.value)}
+                                        min="0"
+                                        value={localStayDuration}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setLocalStayDuration(val);
+                                            if (val !== '' && !isNaN(parseInt(val))) {
+                                                onUpdateStayDuration(item.id, parseInt(val));
+                                            }
+                                        }}
+                                        onBlur={() => {
+                                            if (localStayDuration === '' || isNaN(parseInt(localStayDuration))) {
+                                                setLocalStayDuration(60);
+                                                onUpdateStayDuration(item.id, 60);
+                                            }
+                                        }}
                                         className="w-10 border border-ink-border rounded p-0.5 text-center text-xs bg-surface focus:border-primary outline-none"
                                     />
                                 )}
