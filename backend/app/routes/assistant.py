@@ -339,7 +339,7 @@ async def generate_trip_plan(destination: str, days: int = 3, preferences: str =
                 {{
                     "id": "act-{destination[:2]}-1-1",
                     "title": "地點名稱",
-                    "category": "觀光",
+                    "category": "scenic",
                     "description": "簡短介紹",
                     "stayDuration": 60,
                     "transportMode": "DRIVING",
@@ -354,10 +354,15 @@ async def generate_trip_plan(destination: str, days: int = 3, preferences: str =
 Schema 限制：
 1. 每個 day 必須有 "id" (如 "day-1", "day-2")
 2. 每個 activity 的 "id" 必須是唯一的字串
-3. category 使用中文: "觀光", "美食", "住宿", "交通"
+3. **category 必須使用以下英文值之一**:
+   - "food" (美食相關：餐廳、小吃、咖啡廳、夜市等)
+   - "scenic" (景點觀光：博物館、寺廟、公園、古蹟、自然景觀等)
+   - "hotel" (住宿相關：飯店、民宿等)
+   - "shopping" (購物相關：商場、市集、商店街等)
+   - "other" (其他：交通站點或無法分類的項目)
 4. 經緯度 (lat, lng) 請提供大概位置即可，系統會自動透過 Google Maps 修正為精確座標
 5. transportMode 必須是: "DRIVING", "WALKING", "TRANSIT"
-6. 語言：繁體中文
+6. 語言：繁體中文（但 category 使用英文）
 """
     
     response = model.generate_content(prompt)

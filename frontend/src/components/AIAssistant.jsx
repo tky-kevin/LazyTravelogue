@@ -25,19 +25,19 @@ const MarkdownContent = ({ content }) => {
                 em: ({ children }) => <em className="italic">{children}</em>,
                 // Code
                 code: ({ children }) => (
-                    <code className="bg-indigo-50 px-1 py-0.5 rounded text-[0.8rem] text-indigo-700">
+                    <code className="bg-[#f1f5f0] px-1 py-0.5 rounded text-[0.8rem] text-[#5D7A54]">
                         {children}
                     </code>
                 ),
                 // Links
                 a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
                         {children}
                     </a>
                 ),
                 // Blockquote
                 blockquote: ({ children }) => (
-                    <blockquote className="border-l-2 border-indigo-200 pl-2 my-1 text-gray-600 italic">
+                    <blockquote className="border-l-2 border-[#d0d9cd] pl-2 my-1 text-gray-600 italic">
                         {children}
                     </blockquote>
                 ),
@@ -50,16 +50,16 @@ const MarkdownContent = ({ content }) => {
 
 const ItineraryPreview = ({ plan, onImport }) => {
     return (
-        <div className="mt-2 p-3 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <h4 className="font-bold text-indigo-900 text-sm mb-1">{plan.title}</h4>
-            <p className="text-xs text-indigo-700 mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
+        <div className="mt-2 p-3 bg-[#f1f5f0] rounded-xl border border-[#d0d9cd] shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <h4 className="font-bold text-[#3E4A3D] text-sm mb-1">{plan.title}</h4>
+            <p className="text-xs text-[#5D7A54] mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
             <div className="max-h-32 overflow-y-auto mb-3 space-y-1 pr-1">
                 {plan.days.map((day, dIdx) => (
                     <div key={dIdx} className="text-[0.7rem] bg-white/50 p-1.5 rounded flex flex-col gap-0.5">
-                        <span className="font-bold text-indigo-600">{day.date}</span>
+                        <span className="font-bold text-[#6D8B74]">{day.date}</span>
                         <div className="flex flex-wrap gap-1">
                             {day.activities.slice(0, 3).map((act, aIdx) => (
-                                <span key={aIdx} className="bg-white px-1.5 rounded border border-indigo-50 text-gray-600">
+                                <span key={aIdx} className="bg-white px-1.5 rounded border border-[#e2e8e0] text-gray-600">
                                     {act.title}
                                 </span>
                             ))}
@@ -70,7 +70,7 @@ const ItineraryPreview = ({ plan, onImport }) => {
             </div>
             <button
                 onClick={onImport}
-                className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                className="w-full py-2 bg-[#6D8B74] hover:bg-[#5D7A54] text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
             >
                 匯入此行程
             </button>
@@ -262,7 +262,7 @@ export default function AIAssistant() {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-14 h-14 md:w-16 md:h-16 rounded-full text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-indigo-400 to-purple-400"
+                    className="w-14 h-14 md:w-16 md:h-16 rounded-full text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-[#8BAA81] to-[#6D8B74]"
                 >
                     {isOpen ? <X size={28} /> : <Sparkles size={28} />}
                 </motion.button>
@@ -293,7 +293,7 @@ export default function AIAssistant() {
                         {/* Header */}
                         <div style={{
                             padding: '1rem',
-                            background: 'linear-gradient(to right, #818cf8, #c084fc)',
+                            background: 'linear-gradient(to right, #8BAA81, #6D8B74)',
                             color: '#fff',
                             display: 'flex',
                             alignItems: 'center',
@@ -329,7 +329,7 @@ export default function AIAssistant() {
                                     }}
                                 >
                                     <div style={{
-                                        backgroundColor: msg.role === 'user' ? '#818cf8' : '#fff',
+                                        backgroundColor: msg.role === 'user' ? '#8BAA81' : '#fff',
                                         color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
                                         padding: '10px 14px',
                                         borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
@@ -344,12 +344,12 @@ export default function AIAssistant() {
                                             msg.content
                                         )}
                                         {msg.sources && msg.sources.length > 0 && (
-                                            <div className="mt-2 pt-2 border-t border-indigo-50 text-[0.65rem] text-gray-500">
+                                            <div className="mt-2 pt-2 border-t border-[#e2e8e0] text-[0.65rem] text-gray-500">
                                                 <p className="font-semibold mb-1">參考來源：</p>
                                                 <ul className="list-disc pl-3 space-y-0.5">
                                                     {msg.sources.map((src, i) => (
                                                         <li key={i}>
-                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">
+                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
                                                                 {src.title}
                                                             </a>
                                                         </li>
@@ -375,7 +375,7 @@ export default function AIAssistant() {
                                                 <button
                                                     key={sIdx}
                                                     onClick={() => handleSuggestionClick(suggestion)}
-                                                    className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-500 rounded-full text-xs hover:bg-indigo-50 transition-colors shadow-sm font-medium"
+                                                    className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-medium"
                                                 >
                                                     {suggestion.label}
                                                 </button>
@@ -392,7 +392,7 @@ export default function AIAssistant() {
                                         <button
                                             key={city}
                                             onClick={() => handleGeneratePlan(city)}
-                                            className="px-3 py-1.5 bg-white border border-indigo-100 text-indigo-500 rounded-full text-xs hover:bg-indigo-50 transition-colors shadow-sm font-bold"
+                                            className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-bold"
                                         >
                                             ✨ 規劃 {city}
                                         </button>
@@ -403,9 +403,9 @@ export default function AIAssistant() {
                             {isLoading && (
                                 <div style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: '10px 14px', borderRadius: '12px 12px 12px 0', boxShadow: 'var(--shadow-sm)' }}>
                                     <div className="flex gap-1">
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-indigo-400 rounded-full" />
+                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
                                     </div>
                                 </div>
                             )}
@@ -440,7 +440,7 @@ export default function AIAssistant() {
                                 onClick={handleSendMessage}
                                 disabled={isLoading || !inputMessage.trim()}
                                 style={{
-                                    background: inputMessage.trim() ? '#818cf8' : '#cbd5e1',
+                                    background: inputMessage.trim() ? '#6D8B74' : '#cbd5e1',
                                     color: '#fff',
                                     width: '40px',
                                     height: '40px',
