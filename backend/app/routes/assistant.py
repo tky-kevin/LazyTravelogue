@@ -6,6 +6,7 @@ import json
 from app.auth import get_current_user
 from app.models import TokenData
 from app.services.rag_service import search_knowledge_base
+from app.services.geocoding_service import GeocodingService
 
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -319,12 +320,13 @@ async def generate_trip_plan(destination: str, days: int = 3, preferences: str =
     
     prompt = f"""
 你是一個創意豐富的旅遊規劃師。請為使用者規劃一個前往 {destination} 的 {days} 天行程。
-使用者偏好：{preferences or "無特別偏好"}
+使用者偏好:{preferences or "無特別偏好"}
 
 重要指示：
 1. 請為這個行程取一個**獨特且吸引人的標題**，不要使用通用的「文化探索之旅」或類似模板。
 2. 請根據地點的特色安排**多樣化**的活動，避免每天都只排大景點。
 3. 請確保每天的行程順路且合理。
+4. 請提供**大概的經緯度**座標（不需要非常精確，系統會自動透過 Google Maps 修正）。
 
 請以嚴格的 JSON 格式輸出，必須符合以下結構，不要加入任何其他文字：
 {{
@@ -353,7 +355,7 @@ Schema 限制：
 1. 每個 day 必須有 "id" (如 "day-1", "day-2")
 2. 每個 activity 的 "id" 必須是唯一的字串
 3. category 使用中文: "觀光", "美食", "住宿", "交通"
-4. 經緯度 (lat, lng) 必須準確
+4. 經緯度 (lat, lng) 請提供大概位置即可，系統會自動透過 Google Maps 修正為精確座標
 5. transportMode 必須是: "DRIVING", "WALKING", "TRANSIT"
 6. 語言：繁體中文
 """
@@ -368,6 +370,14 @@ Schema 限制：
         text = text.split("```")[1].split("```")[0].strip()
     
     plan_data = json.loads(text)
+    
+    # Apply geocoding to convert place names to accurate coordinates
+    # Falls back to AI-generated coordinates if Google Maps API fails
+    try:
+        plan_data = await GeocodingService.geocode_itinerary_activities(plan_data)
+    except Exception as e:
+        print(f"Geocoding error (using AI coordinates as fallback): {e}")
+    
     return plan_data
 
 

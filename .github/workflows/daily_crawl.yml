@@ -43,4 +43,4 @@ jobs:
         
         # 執行爬蟲，每天爬取 20 篇「新」文章（跳過已爬過的）
         # 優先爬取最新更新的文章，直到達到目標數量或全部爬完
-        python run_full_crawl.py --max 50
+        python run_full_crawl.py --max 5
