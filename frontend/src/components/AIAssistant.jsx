@@ -562,7 +562,7 @@ export default function AIAssistant({ inline = false }) {
                                     }}
                                 >
                                     <div style={{
-                                        backgroundColor: msg.role === 'user' ? '#8BAA81' : '#fff',
+                                        backgroundColor: msg.role === 'user' ? '#14b8a6' : '#fff',
                                         color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
                                         padding: '10px 14px',
                                         borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
@@ -582,7 +582,7 @@ export default function AIAssistant({ inline = false }) {
                                                 <ul className="list-disc pl-3 space-y-0.5">
                                                     {msg.sources.map((src, i) => (
                                                         <li key={i}>
-                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
+                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                                                                 {src.title}
                                                             </a>
                                                         </li>
@@ -608,7 +608,7 @@ export default function AIAssistant({ inline = false }) {
                                                 <button
                                                     key={sIdx}
                                                     onClick={() => handleSuggestionClick(suggestion)}
-                                                    className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-medium"
+                                                    className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-medium"
                                                 >
                                                     {suggestion.label}
                                                 </button>
@@ -625,7 +625,7 @@ export default function AIAssistant({ inline = false }) {
                                         <button
                                             key={city}
                                             onClick={() => handleGeneratePlan(city)}
-                                            className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-bold"
+                                            className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-bold"
                                         >
                                             ✨ 規劃 {city}
                                         </button>
