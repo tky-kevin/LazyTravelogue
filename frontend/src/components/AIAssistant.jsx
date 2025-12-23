@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send } from 'lucide-react';
+import { Sparkles, X, Send, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import client from '../api/client';
@@ -25,13 +25,13 @@ const MarkdownContent = ({ content }) => {
                 em: ({ children }) => <em className="italic">{children}</em>,
                 // Code
                 code: ({ children }) => (
-                    <code className="bg-[#f1f5f0] px-1 py-0.5 rounded text-[0.8rem] text-[#5D7A54]">
+                    <code className="bg-[#f1f5f9] px-1 py-0.5 rounded text-[0.8rem] text-primary">
                         {children}
                     </code>
                 ),
                 // Links
                 a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                         {children}
                     </a>
                 ),
@@ -50,16 +50,16 @@ const MarkdownContent = ({ content }) => {
 
 const ItineraryPreview = ({ plan, onImport }) => {
     return (
-        <div className="mt-2 p-3 bg-[#f1f5f0] rounded-xl border border-[#d0d9cd] shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <h4 className="font-bold text-[#3E4A3D] text-sm mb-1">{plan.title}</h4>
-            <p className="text-xs text-[#5D7A54] mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
+        <div className="mt-2 p-3 bg-teal-50/50 rounded-xl border border-teal-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+            <h4 className="font-bold text-gray-800 text-sm mb-1">{plan.title}</h4>
+            <p className="text-xs text-gray-500 mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
             <div className="max-h-32 overflow-y-auto mb-3 space-y-1 pr-1">
                 {plan.days.map((day, dIdx) => (
                     <div key={dIdx} className="text-[0.7rem] bg-white/50 p-1.5 rounded flex flex-col gap-0.5">
-                        <span className="font-bold text-[#6D8B74]">{day.date}</span>
+                        <span className="font-bold text-primary">{day.date}</span>
                         <div className="flex flex-wrap gap-1">
                             {day.activities.slice(0, 3).map((act, aIdx) => (
-                                <span key={aIdx} className="bg-white px-1.5 rounded border border-[#e2e8e0] text-gray-600">
+                                <span key={aIdx} className="bg-white px-1.5 rounded border border-gray-100 text-gray-600">
                                     {act.title}
                                 </span>
                             ))}
@@ -70,7 +70,7 @@ const ItineraryPreview = ({ plan, onImport }) => {
             </div>
             <button
                 onClick={onImport}
-                className="w-full py-2 bg-[#6D8B74] hover:bg-[#5D7A54] text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+                className="w-full py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
             >
                 匯入此行程
             </button>
@@ -96,6 +96,14 @@ export default function AIAssistant({ inline = false }) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, isOpen]);
+
+    const handleNewChat = () => {
+        setMessages([{
+            role: 'assistant',
+            content: '👋 **嗨！我是你的旅遊小精靈！**\n\n我可以幫你：\n- 🗺️ 尋找景點\n- 🍜 推薦美食\n- ✨ 直接規劃完整行程\n\n你想去哪裡呢？\n\n> *小提醒：地圖和 AI 免費額度有限，若額度用罄，還請包涵喔！\n(*//▽//*)q*'
+        }]);
+        setInputMessage('');
+    };
 
     const handleSendMessage = async () => {
         if (!inputMessage.trim()) return;
@@ -268,7 +276,7 @@ export default function AIAssistant({ inline = false }) {
                 {/* Header */}
                 <div style={{
                     padding: '1rem',
-                    background: 'linear-gradient(to right, #8BAA81, #6D8B74)',
+                    background: 'var(--pk-primary, #14b8a6)',
                     color: '#fff',
                     display: 'flex',
                     alignItems: 'center',
@@ -277,9 +285,27 @@ export default function AIAssistant({ inline = false }) {
                     <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '50%' }}>
                         <Sparkles size={18} />
                     </div>
-                    <div>
+                    <div style={{ flex: 1 }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
                     </div>
+                    <button
+                        onClick={handleNewChat}
+                        style={{
+                            background: 'rgba(255,255,255,0.15)',
+                            border: 'none',
+                            color: '#fff',
+                            padding: '6px',
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 0.2s',
+                        }}
+                        title="新對話"
+                    >
+                        <RefreshCw size={16} />
+                    </button>
                 </div>
 
                 {/* Chat Area */}
@@ -304,7 +330,7 @@ export default function AIAssistant({ inline = false }) {
                             }}
                         >
                             <div style={{
-                                backgroundColor: msg.role === 'user' ? '#8BAA81' : '#fff',
+                                backgroundColor: msg.role === 'user' ? '#14b8a6' : '#fff',
                                 color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
                                 padding: '10px 14px',
                                 borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
@@ -324,7 +350,7 @@ export default function AIAssistant({ inline = false }) {
                                         <ul className="list-disc pl-3 space-y-0.5">
                                             {msg.sources.map((src, i) => (
                                                 <li key={i}>
-                                                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
+                                                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                                                         {src.title}
                                                     </a>
                                                 </li>
@@ -350,7 +376,7 @@ export default function AIAssistant({ inline = false }) {
                                         <button
                                             key={sIdx}
                                             onClick={() => handleSuggestionClick(suggestion)}
-                                            className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-medium"
+                                            className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-medium"
                                         >
                                             {suggestion.label}
                                         </button>
@@ -367,7 +393,7 @@ export default function AIAssistant({ inline = false }) {
                                 <button
                                     key={city}
                                     onClick={() => handleGeneratePlan(city)}
-                                    className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-bold"
+                                    className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-bold"
                                 >
                                     ✨ 規劃 {city}
                                 </button>
@@ -378,9 +404,9 @@ export default function AIAssistant({ inline = false }) {
                     {isLoading && (
                         <div style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: '10px 14px', borderRadius: '12px 12px 12px 0', boxShadow: 'var(--shadow-sm)' }}>
                             <div className="flex gap-1">
-                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
-                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
-                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
+                                <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
+                                <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
                             </div>
                         </div>
                     )}
@@ -416,7 +442,7 @@ export default function AIAssistant({ inline = false }) {
                         onClick={handleSendMessage}
                         disabled={isLoading || !inputMessage.trim()}
                         style={{
-                            background: inputMessage.trim() ? '#6D8B74' : '#cbd5e1',
+                            background: inputMessage.trim() ? '#14b8a6' : '#cbd5e1',
                             color: '#fff',
                             width: '40px',
                             height: '40px',
@@ -443,7 +469,7 @@ export default function AIAssistant({ inline = false }) {
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-14 h-14 md:w-16 md:h-16 rounded-full text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-[#8BAA81] to-[#6D8B74]"
+                    className="w-14 h-14 md:w-16 md:h-16 rounded-full text-white flex items-center justify-center shadow-float border-none cursor-pointer relative bg-gradient-to-br from-[#14b8a6] to-[#0d9488]"
                 >
                     {isOpen ? <X size={28} /> : <Sparkles size={28} />}
                 </motion.button>
@@ -452,15 +478,16 @@ export default function AIAssistant({ inline = false }) {
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="fixed bottom-0 right-0 md:bottom-[100px] md:right-[30px] w-full h-full md:w-[350px] md:h-[500px] bg-white md:rounded-[var(--radius-lg)] shadow-[var(--shadow-float)] border border-[var(--pk-border)] z-[100] flex flex-col overflow-hidden"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="fixed bottom-0 right-0 md:bottom-[100px] md:right-[30px] w-full h-full md:w-[380px] md:h-[600px] bg-white md:rounded-[2rem] shadow-[var(--shadow-float)] z-[100] flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div style={{
-                            padding: '1rem',
-                            background: 'linear-gradient(to right, #8BAA81, #6D8B74)',
+                            padding: '1.25rem',
+                            background: 'var(--pk-primary, #14b8a6)',
                             color: '#fff',
                             display: 'flex',
                             alignItems: 'center',
@@ -469,8 +496,47 @@ export default function AIAssistant({ inline = false }) {
                             <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '50%' }}>
                                 <Sparkles size={18} />
                             </div>
-                            <div>
+                            <div style={{ flex: 1 }}>
                                 <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={handleNewChat}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.15)',
+                                        border: 'none',
+                                        color: '#fff',
+                                        padding: '6px',
+                                        borderRadius: '50%',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'background 0.2s',
+                                    }}
+                                    title="新對話"
+                                >
+                                    <RefreshCw size={16} />
+                                </button>
+                                <button
+                                    onClick={() => setIsOpen(false)}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.15)',
+                                        border: 'none',
+                                        color: '#fff',
+                                        padding: '6px',
+                                        borderRadius: '50%',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'background 0.2s',
+                                    }}
+                                    className="md:hidden flex"
+                                >
+                                    <X size={18} />
+                                </button>
                             </div>
                         </div>
 
@@ -570,9 +636,9 @@ export default function AIAssistant({ inline = false }) {
                             {isLoading && (
                                 <div style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: '10px 14px', borderRadius: '12px 12px 12px 0', boxShadow: 'var(--shadow-sm)' }}>
                                     <div className="flex gap-1">
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
-                                        <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
+                                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
+                                        <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#14b8a6] rounded-full" />
                                     </div>
                                 </div>
                             )}
@@ -607,7 +673,7 @@ export default function AIAssistant({ inline = false }) {
                                 onClick={handleSendMessage}
                                 disabled={isLoading || !inputMessage.trim()}
                                 style={{
-                                    background: inputMessage.trim() ? '#6D8B74' : '#cbd5e1',
+                                    background: inputMessage.trim() ? '#14b8a6' : '#cbd5e1',
                                     color: '#fff',
                                     width: '40px',
                                     height: '40px',
