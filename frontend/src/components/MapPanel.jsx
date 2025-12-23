@@ -228,7 +228,46 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     const mapRef = useRef(null);
     const [infoWindowOpen, setInfoWindowOpen] = useState(null);
     const [renderedRoutes, setRenderedRoutes] = useState({}); // key -> routeResult
+    const [selectedDays, setSelectedDays] = useState(new Set());
     const { getRoute } = useRouteCalculator();
+
+    // Sync selectedDays when activeDay changes or when days list changes (to handle initialization)
+    useEffect(() => {
+        if (activeDay) {
+            setSelectedDays(prev => {
+                const next = new Set(prev);
+                next.add(activeDay);
+                return next;
+            });
+        }
+    }, [activeDay]);
+
+    // Initialize with activeDay if selectedDays is empty
+    useEffect(() => {
+        if (selectedDays.size === 0 && activeDay) {
+            setSelectedDays(new Set([activeDay]));
+        }
+    }, [days, activeDay]);
+
+    const toggleDaySelection = (dayId) => {
+        setSelectedDays(prev => {
+            const next = new Set(prev);
+            if (next.has(dayId)) {
+                next.delete(dayId);
+            } else {
+                next.add(dayId);
+            }
+            return next;
+        });
+    };
+
+    const selectAllDays = () => {
+        setSelectedDays(new Set(days.map(d => d.id)));
+    };
+
+    const deselectAllDays = () => {
+        setSelectedDays(new Set());
+    };
 
     // Map View State
     const [mapCenter, setMapCenter] = useState(center);
@@ -282,9 +321,12 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         return days.map((day, index) => {
             // Use itineraryData activities if they belong to this day (itineraryData holds calculated days)
             const activities = itineraryData[day.id] || itineraryData[day.date] || day.activities || [];
+            const isVisible = selectedDays.has(day.id);
             return {
                 day: day.id,
+                label: day.date,
                 color: getColorForDay(index),
+                isVisible: isVisible,
                 locations: activities.map(item => ({
                     ...item,
                     lat: parseFloat(item.lat),
@@ -292,7 +334,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                 }))
             };
         });
-    }, [days, itineraryData]);
+    }, [days, itineraryData, selectedDays]);
 
     const onLoad = useCallback((map) => {
         mapRef.current = map;
@@ -446,6 +488,47 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
 
     return (
         <div className="h-full w-full md:rounded-xl shadow-inner md:border border-gray-200 overflow-hidden">
+            {/* Day Selection UI */}
+            <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 max-w-[80%]">
+                <div className="flex flex-wrap gap-2">
+                    {mapData.map((dayData, idx) => (
+                        <button
+                            key={dayData.day}
+                            onClick={() => toggleDaySelection(dayData.day)}
+                            className={`
+                                    px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-md border-2
+                                    flex items-center gap-2
+                                    ${dayData.isVisible
+                                    ? 'bg-white border-transparent'
+                                    : 'bg-white/60 border-transparent text-gray-400 opacity-60 hover:opacity-100'}
+                                `}
+                            style={dayData.isVisible ? { borderTopColor: dayData.color, borderBottomColor: dayData.color, borderLeftColor: dayData.color, borderRightColor: dayData.color, color: dayData.color } : {}}
+                        >
+                            <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: dayData.color }}
+                            />
+                            {dayData.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex gap-2">
+                    <button
+                        onClick={selectAllDays}
+                        className="px-2 py-1 bg-white/80 backdrop-blur-sm rounded-md text-[10px] font-bold text-gray-500 hover:bg-white transition-colors border border-gray-100 uppercase tracking-tight"
+                    >
+                        全選
+                    </button>
+                    <button
+                        onClick={deselectAllDays}
+                        className="px-2 py-1 bg-white/80 backdrop-blur-sm rounded-md text-[10px] font-bold text-gray-500 hover:bg-white transition-colors border border-gray-100 uppercase tracking-tight"
+                    >
+                        清除
+                    </button>
+                </div>
+            </div>
+
             <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={mapCenter}
@@ -489,7 +572,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                     ))}
                 </div>
                 {/* Render Routes */}
-                {mapData.map(dayData => (
+                {mapData.filter(d => d.isVisible).map(dayData => (
                     <React.Fragment key={dayData.day}>
                         {dayData.locations.map((loc, i) => {
                             if (i >= dayData.locations.length - 1) return null;
@@ -524,7 +607,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                                     <InfoWindow onCloseClick={() => setInfoWindowOpen(null)}>
                                         <div className="p-1 text-center font-sans">
                                             <h3 className="font-semibold text-sm mb-1">{loc.title}</h3>
-                                            <span className="text-xs text-gray-500">{dayData.day} - {loc.category}</span>
+                                            <span className="text-xs text-gray-500">{dayData.label} - {loc.category}</span>
                                         </div>
                                     </InfoWindow>
                                 )}
