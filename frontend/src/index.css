@@ -52,6 +52,10 @@
   scrollbar-width: none;
 }
 
+.safe-area-pb {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+}
+
 /* --- Google Maps Autocomplete Styling --- */
 .pac-container {
   @apply bg-white rounded-xl shadow-xl border border-gray-100 font-sans mt-2;

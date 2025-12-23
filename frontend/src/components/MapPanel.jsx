@@ -445,7 +445,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     if (!isLoaded) return <div className="h-full w-full bg-gray-100 animate-pulse rounded-xl" />;
 
     return (
-        <div className="h-full w-full rounded-xl shadow-inner border border-gray-200 overflow-hidden">
+        <div className="h-full w-full md:rounded-xl shadow-inner md:border border-gray-200 overflow-hidden">
             <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={mapCenter}

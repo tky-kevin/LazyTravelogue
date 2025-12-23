@@ -179,7 +179,7 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
 
             {/* Card Content */}
             <motion.div
-                className="relative flex gap-3 p-3 bg-surface rounded-[2px] border border-ink-border shadow-paper flex-1 group"
+                className="relative flex gap-3 p-3 sm:p-4 bg-surface rounded-lg border border-ink-border shadow-paper flex-1 group"
                 initial={{ opacity: 0, y: 20 }}
                 animate={isDragging ? animateDragging : animateNormal}
                 whileHover={!isEditing && !readOnly ? whileHoverAnim : {}}
@@ -204,7 +204,7 @@ const ItineraryCard = ({ item, onClick, onUpdateStayDuration, isDragging, dragCo
                                 autoFocus
                             />
                         ) : (
-                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate max-w-[120px] sm:max-w-[140px]" title={item.title}>
+                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate" title={item.title}>
                                 {item.title}
                             </h3>
                         )}
@@ -1052,7 +1052,7 @@ export default function ItineraryPanel({
     return (
         <div className="h-full flex flex-col bg-transparent overflow-hidden">
             {/* Header */}
-            <div className="py-4 bg-transparent flex justify-between items-center">
+            <div className="py-4 px-4 sm:px-6 bg-transparent flex justify-between items-center">
                 <div className="flex flex-col flex-1 mr-4">
                     <input
                         className="font-sans text-xl leading-none bg-transparent border-b border-transparent focus:border-ink-border focus:bg-surface-alt/50 transition-all outline-none text-ink placeholder-ink-muted/50 w-full px-1 -ml-1 rounded"
@@ -1177,7 +1177,7 @@ export default function ItineraryPanel({
                     setIsAtBottom((scrollHeight - clientHeight - scrollTop) <= 5);
                 }}
             >
-                <div className="max-w-[400px] mx-auto">
+                <div className="max-w-[400px] mx-auto px-4 sm:px-0">
                     {/* Start Time Picker - Custom UI */}
                     <div className="flex justify-center mb-6 relative z-30">
                         {/* Trigger Button */}

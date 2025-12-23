@@ -78,7 +78,7 @@ const ItineraryPreview = ({ plan, onImport }) => {
     );
 };
 
-export default function AIAssistant() {
+export default function AIAssistant({ inline = false }) {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
         { role: 'assistant', content: '👋 **嗨！我是你的旅遊小精靈！**\n\n我可以幫你：\n- 🗺️ 尋找景點\n- 🍜 推薦美食\n- ✨ 直接規劃完整行程\n\n你想去哪裡呢？\n\n> *小提醒：地圖和 AI 免費額度有限，若額度用罄，還請包涵喔！\n(*//▽//*)q*' }
@@ -255,9 +255,190 @@ export default function AIAssistant() {
         }
     };
 
+    if (inline) {
+        return (
+            <div style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#fff',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+            }}>
+                {/* Header */}
+                <div style={{
+                    padding: '1rem',
+                    background: 'linear-gradient(to right, #8BAA81, #6D8B74)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                }}>
+                    <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '50%' }}>
+                        <Sparkles size={18} />
+                    </div>
+                    <div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
+                    </div>
+                </div>
+
+                {/* Chat Area */}
+                <div
+                    ref={scrollRef}
+                    style={{
+                        flex: 1,
+                        padding: '1rem',
+                        backgroundColor: '#f8fafc',
+                        overflowY: 'auto',
+                        scrollBehavior: 'smooth'
+                    }}
+                >
+                    {messages.map((msg, idx) => (
+                        <div
+                            key={idx}
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                marginBottom: '1rem'
+                            }}
+                        >
+                            <div style={{
+                                backgroundColor: msg.role === 'user' ? '#8BAA81' : '#fff',
+                                color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
+                                padding: '10px 14px',
+                                borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                                boxShadow: 'var(--shadow-sm)',
+                                maxWidth: '85%',
+                                fontSize: '0.9rem',
+                                lineHeight: '1.4'
+                            }}>
+                                {msg.role === 'assistant' ? (
+                                    <MarkdownContent content={msg.content} />
+                                ) : (
+                                    msg.content
+                                )}
+                                {msg.sources && msg.sources.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-[#e2e8e0] text-[0.65rem] text-gray-500">
+                                        <p className="font-semibold mb-1">參考來源：</p>
+                                        <ul className="list-disc pl-3 space-y-0.5">
+                                            {msg.sources.map((src, i) => (
+                                                <li key={i}>
+                                                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-[#6D8B74] hover:underline">
+                                                        {src.title}
+                                                    </a>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {msg.plan && (
+                                    <ItineraryPreview
+                                        plan={msg.plan}
+                                        onImport={() => replaceItinerary(msg.plan)}
+                                    />
+                                )}
+                            </div>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
+                                {msg.role === 'user' ? '你' : 'AI'}
+                            </span>
+
+                            {/* Dynamic Suggestions - Show only on the latest AI message */}
+                            {msg.role === 'assistant' && idx === messages.length - 1 && msg.suggestions && msg.suggestions.length > 0 && !isLoading && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {msg.suggestions.map((suggestion, sIdx) => (
+                                        <button
+                                            key={sIdx}
+                                            onClick={() => handleSuggestionClick(suggestion)}
+                                            className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-medium"
+                                        >
+                                            {suggestion.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Initial Quick Actions - Show only on first load */}
+                    {messages.length === 1 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {['台北', '台南', '高雄'].map(city => (
+                                <button
+                                    key={city}
+                                    onClick={() => handleGeneratePlan(city)}
+                                    className="px-3 py-1.5 bg-white border border-[#d0d9cd] text-[#6D8B74] rounded-full text-xs hover:bg-[#f1f5f0] transition-colors shadow-sm font-bold"
+                                >
+                                    ✨ 規劃 {city}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {isLoading && (
+                        <div style={{ alignSelf: 'flex-start', backgroundColor: '#fff', padding: '10px 14px', borderRadius: '12px 12px 12px 0', boxShadow: 'var(--shadow-sm)' }}>
+                            <div className="flex gap-1">
+                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                                <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-2 h-2 bg-[#8BAA81] rounded-full" />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Input Area */}
+                <div style={{
+                    padding: '1rem',
+                    borderTop: '1px solid var(--pk-border)',
+                    display: 'flex',
+                    gap: '0.5rem',
+                    backgroundColor: '#fff',
+                    paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))'
+                }}>
+                    <input
+                        type="text"
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="輸入訊息..."
+                        disabled={isLoading}
+                        style={{
+                            flex: 1,
+                            padding: '10px 14px',
+                            borderRadius: '20px',
+                            border: '1px solid var(--pk-border)',
+                            outline: 'none',
+                            fontSize: '0.9rem',
+                            backgroundColor: isLoading ? '#f1f5f9' : '#fff'
+                        }}
+                    />
+                    <button
+                        onClick={handleSendMessage}
+                        disabled={isLoading || !inputMessage.trim()}
+                        style={{
+                            background: inputMessage.trim() ? '#6D8B74' : '#cbd5e1',
+                            color: '#fff',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 0.2s',
+                            cursor: inputMessage.trim() ? 'pointer' : 'default',
+                            border: 'none'
+                        }}
+                    >
+                        <Send size={18} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
-            <div className="fixed bottom-24 right-5 md:bottom-8 md:right-8 z-40">
+            <div className="fixed bottom-24 right-5 md:bottom-8 md:right-8 z-40 md:block hidden">
                 <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
@@ -274,21 +455,7 @@ export default function AIAssistant() {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        style={{
-                            position: 'fixed',
-                            bottom: '100px',
-                            right: '30px',
-                            width: '350px',
-                            height: '500px',
-                            backgroundColor: '#fff',
-                            borderRadius: 'var(--radius-lg)',
-                            boxShadow: 'var(--shadow-float)',
-                            border: '1px solid var(--pk-border)',
-                            zIndex: 100,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            overflow: 'hidden'
-                        }}
+                        className="fixed bottom-0 right-0 md:bottom-[100px] md:right-[30px] w-full h-full md:w-[350px] md:h-[500px] bg-white md:rounded-[var(--radius-lg)] shadow-[var(--shadow-float)] border border-[var(--pk-border)] z-[100] flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div style={{

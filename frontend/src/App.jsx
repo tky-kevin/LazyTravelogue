@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Map, List } from 'lucide-react';
+import { Map, List, Sparkles } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import ItineraryPanel from './components/ItineraryPanel';
@@ -121,9 +121,9 @@ function App() {
         activeDayLabel={activeDayLabel}
       />
 
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(400px,1fr)_2fr] gap-0 md:gap-8 px-0 md:px-12 pb-0 md:pb-8 overflow-hidden relative">
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(400px,450px)_1fr] lg:grid-cols-[minmax(450px,500px)_1fr] gap-0 md:gap-8 px-0 md:px-8 lg:px-12 pt-2 md:pt-4 pb-20 md:pb-8 overflow-hidden relative">
         {/* Left: Itinerary Panel */}
-        <div className={`h-full overflow-hidden ${mobileView === 'map' ? 'hidden md:block' : 'block'}`}>
+        <div className={`h-full overflow-hidden ${mobileView === 'list' ? 'block' : 'hidden md:block'}`}>
           <ItineraryPanel
             activeDay={activeDay}
             onDayChange={setActiveDay}
@@ -152,33 +152,56 @@ function App() {
           />
         </div>
 
-        {/* Right: Map Panel */}
+        {/* Right: Map Panel / AI Panel (Mobile Only) */}
         <div className={`h-full relative ${mobileView === 'list' ? 'hidden md:block' : 'block'}`}>
-          <MapPanel
-            selectedLocation={selectedLocation}
-            focusedLocation={focusedLocation}
-            itineraryData={calculatedItinerary}
-            days={currentItinerary?.days || []}
-            activeDay={activeDay}
-            activeDayLabel={activeDayLabel}
-            onLocationSelect={setSelectedLocation}
-            onAddLocation={() => handleAddLocation(setMobileView)}
-            onAddToPocket={handleAddToPocket}
-            onDirectionsFetched={handleDirectionsFetched}
-            onDirectionsError={handleDirectionsError}
-          />
+          {mobileView === 'ai' ? (
+            <div className="md:hidden h-full">
+              <AIAssistant inline />
+            </div>
+          ) : (
+            <MapPanel
+              selectedLocation={selectedLocation}
+              focusedLocation={focusedLocation}
+              itineraryData={calculatedItinerary}
+              days={currentItinerary?.days || []}
+              activeDay={activeDay}
+              activeDayLabel={activeDayLabel}
+              onLocationSelect={setSelectedLocation}
+              onAddLocation={() => handleAddLocation(setMobileView)}
+              onAddToPocket={handleAddToPocket}
+              onDirectionsFetched={handleDirectionsFetched}
+              onDirectionsError={handleDirectionsError}
+            />
+          )}
         </div>
 
-        {/* Mobile Toggle FAB */}
-        <button
-          className="md:hidden fixed bottom-6 right-6 z-50 bg-primary text-white p-4 rounded-full shadow-2xl transition-transform active:scale-95 flex items-center justify-center"
-          onClick={() => setMobileView(prev => prev === 'list' ? 'map' : 'list')}
-          style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.25)' }}
-        >
-          {mobileView === 'list' ? <Map size={24} /> : <List size={24} />}
-        </button>
+        {/* Mobile Bottom Navigation */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-ink-border z-50 flex justify-around items-center py-2 px-6 safe-area-pb">
+          <button
+            onClick={() => setMobileView('list')}
+            className={`flex flex-col items-center gap-1 p-2 transition-colors ${mobileView === 'list' ? 'text-primary' : 'text-ink-muted'}`}
+          >
+            <List size={22} className={mobileView === 'list' ? 'scale-110' : ''} />
+            <span className="text-[10px] font-bold">行程</span>
+          </button>
+          <button
+            onClick={() => setMobileView('map')}
+            className={`flex flex-col items-center gap-1 p-2 transition-colors ${mobileView === 'map' ? 'text-primary' : 'text-ink-muted'}`}
+          >
+            <Map size={22} className={mobileView === 'map' ? 'scale-110' : ''} />
+            <span className="text-[10px] font-bold">地圖</span>
+          </button>
+          <button
+            onClick={() => setMobileView('ai')}
+            className={`flex flex-col items-center gap-1 p-2 transition-colors ${mobileView === 'ai' ? 'text-primary' : 'text-ink-muted'}`}
+          >
+            <Sparkles size={22} className={mobileView === 'ai' ? 'scale-110' : ''} />
+            <span className="text-[10px] font-bold">助手</span>
+          </button>
+        </div>
       </main>
 
+      {/* Desktop Floating Assistant */}
       <AIAssistant />
     </div>
   );
