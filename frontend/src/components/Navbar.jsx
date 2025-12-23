@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Share2, User, LogOut, X, Clock, History, Map as MapIcon, Plus, Trash2, ChevronDown, Check, Bookmark, Coffee, Hotel, Camera, MapPin } from 'lucide-react';
+import { Search, Share2, User, LogOut, X, Clock, History, Map as MapIcon, Plus, Trash2, ChevronDown, Check, Bookmark, Coffee, Hotel, Camera, MapPin, Presentation } from 'lucide-react';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
 import { categorizePlace } from '../utils/placeUtils';
@@ -403,6 +403,17 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                         )}
                     </div>
                 )}
+
+                <a
+                    href="https://www.canva.com/design/DAG4M_2YyQo/VrmRT-dKPmaOAs4-DcAwHQ/edit?utm_content=DAG4M_2YyQo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden sm:flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm group whitespace-nowrap"
+                    title="專案簡報"
+                >
+                    <Presentation size={18} className="text-gray-400 group-hover:text-amber-500 transition-colors" />
+                    <span className="text-sm font-medium">專案簡報</span>
+                </a>
 
                 <button
                     onClick={handleShare}
