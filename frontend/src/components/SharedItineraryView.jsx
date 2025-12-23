@@ -1,20 +1,49 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
-import { Map, List } from 'lucide-react';
+import { Map, List, Download } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 import client from '../api/client';
+import { useItinerary } from '../context/ItineraryContext';
 import ItineraryPanel from './ItineraryPanel';
 import MapPanel from './MapPanel';
 import { recalculateDayTimeline } from '../utils/timeUtils';
 
 export default function SharedItineraryView() {
     const { token } = useParams();
+    const navigate = useNavigate();
+    const { user, login, createItinerary } = useItinerary();
     const [itinerary, setItinerary] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeDay, setActiveDay] = useState(null);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const [mobileView, setMobileView] = useState('list');
     const [focusedLocation, setFocusedLocation] = useState(null);
+    const [isImporting, setIsImporting] = useState(false);
+
+    const handleImport = async () => {
+        if (!user || !itinerary) return;
+
+        setIsImporting(true);
+        try {
+            const res = await createItinerary({
+                title: `(匯入) ${itinerary.title}`,
+                days: itinerary.days,
+                start_date: itinerary.start_date,
+                end_date: itinerary.end_date,
+                start_times: itinerary.start_times,
+                pocket_list: itinerary.pocket_list
+            });
+            if (res) {
+                navigate('/');
+            }
+        } catch (error) {
+            console.error("Import error", error);
+            toast.error("匯入失敗");
+        } finally {
+            setIsImporting(false);
+        }
+    };
 
     useEffect(() => {
         if (!token) return;
@@ -32,7 +61,7 @@ export default function SharedItineraryView() {
             .finally(() => setLoading(false));
     }, [token]);
 
-    // Data Transformation (Similar to App.jsx)
+    // Data Transformation
     const daysData = useMemo(() => {
         if (!itinerary?.days) return { "Day 1": [] };
         const map = {};
@@ -51,7 +80,6 @@ export default function SharedItineraryView() {
 
     const calculatedItinerary = useMemo(() => {
         const currentActivities = daysData[activeDay] || [];
-        // Default start time if not present
         const startTime = itinerary?.start_times?.[activeDay] || '09:00';
 
         return {
@@ -61,25 +89,56 @@ export default function SharedItineraryView() {
     }, [daysData, itinerary, activeDay, activeDayLabel]);
 
     if (loading) {
-        return <div className="h-screen w-full flex items-center justify-center bg-gray-50 text-gray-500">載入中...</div>;
+        return <div className="h-screen w-full flex items-center justify-center bg-gray-50 text-gray-500 font-sans">載入中...</div>;
     }
 
     if (!itinerary) {
-        return <div className="h-screen w-full flex items-center justify-center bg-gray-50 text-gray-500">找不到此行程</div>;
+        return <div className="h-screen w-full flex items-center justify-center bg-gray-50 text-gray-500 font-sans">找不到此行程</div>;
     }
 
-    // Dummy No-ops for read-only
     const noOp = () => { };
 
     return (
-        <div className="h-screen flex flex-col font-sans text-gray-900 bg-white">
+        <div className="h-screen flex flex-col font-sans text-gray-900 bg-white overflow-hidden">
             <Toaster position="top-center" />
 
-            {/* Minimal Header */}
-            <header className="px-6 py-3 border-b flex items-center justify-between bg-white shadow-sm z-10">
+            {/* Header */}
+            <header className="px-4 md:px-12 py-3 border-b flex items-center justify-between bg-white shadow-sm z-10">
                 <div className="flex items-center gap-2">
-                    <span className="text-xl font-serif font-bold text-primary">LazyTravelogue</span>
-                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">Shared View</span>
+                    <span
+                        className="text-xl font-serif font-bold text-primary cursor-pointer"
+                        onClick={() => navigate('/')}
+                    >
+                        LazyTravelogue
+                    </span>
+                    <span className="hidden sm:block text-[10px] px-2 py-0.5 bg-primary/10 text-primary font-bold rounded-full uppercase tracking-wider">
+                        分享預覽
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {user ? (
+                        <button
+                            onClick={handleImport}
+                            disabled={isImporting}
+                            className="flex items-center gap-2 px-5 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-md hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <Download size={16} />
+                            {isImporting ? '匯入中...' : '匯入行程'}
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-3">
+                            <div className="hidden sm:block text-xs text-ink-muted italic font-medium">✨ 想收藏此行程？</div>
+                            <GoogleLogin
+                                onSuccess={(res) => login(res)}
+                                onError={() => toast.error("登入失敗")}
+                                useOneTap
+                                theme="outline"
+                                shape="pill"
+                                size="medium"
+                            />
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -94,11 +153,7 @@ export default function SharedItineraryView() {
                         days={itinerary.days || []}
                         startDate={itinerary.start_date ? new Date(itinerary.start_date) : new Date()}
                         endDate={itinerary.end_date ? new Date(itinerary.end_date) : new Date()}
-
-                        // Read Only Props
                         readOnly={true}
-
-                        // Dummy handlers
                         onUpdateDateRange={noOp}
                         onReorderDays={noOp}
                         onRemoveItem={noOp}
@@ -113,8 +168,9 @@ export default function SharedItineraryView() {
                         }}
                         onUpdateTransportMode={noOp}
                         onUpdateStayDuration={noOp}
-                        pocketList={[]} // Hide pocket in read-only
+                        pocketList={[]}
                         onMoveFromPocket={noOp}
+                        itineraryId={itinerary.id || itinerary._id}
                     />
                 </div>
 
@@ -128,16 +184,14 @@ export default function SharedItineraryView() {
                         activeDay={activeDay}
                         activeDayLabel={activeDayLabel}
                         onLocationSelect={setSelectedLocation}
-                        // Read-only map: no adding
                         onAddLocation={null}
                         onAddToPocket={null}
-                        // Directions fetching is internal to MapPanel, usually works fine if data is consistent
                         onDirectionsFetched={noOp}
                         onDirectionsError={console.warn}
                     />
                 </div>
 
-                {/* Mobile Toggle FAB */}
+                {/* Mobile FAB */}
                 <button
                     className="md:hidden fixed bottom-6 right-6 z-50 bg-primary text-white p-4 rounded-full shadow-2xl transition-transform active:scale-95 flex items-center justify-center"
                     onClick={() => setMobileView(prev => prev === 'list' ? 'map' : 'list')}
