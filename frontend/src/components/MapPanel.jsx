@@ -87,7 +87,7 @@ const getStepOptions = (mode, color) => {
 };
 
 // Wrapper component for Standard Marker
-const AdvancedMarker = ({ position, color, onClick, children }) => {
+const AdvancedMarker = ({ position, color, label, onClick, children }) => {
     const map = useGoogleMap();
     const markerRef = useRef(null);
     const clickRef = useRef(onClick);
@@ -107,13 +107,19 @@ const AdvancedMarker = ({ position, color, onClick, children }) => {
             map,
             position,
             clickable: true,
+            label: label ? {
+                text: String(label),
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: '900'
+            } : null,
             icon: {
                 path: window.google.maps.SymbolPath.CIRCLE,
                 fillColor: color || '#ef4444',
                 fillOpacity: 1,
                 strokeColor: 'white',
                 strokeWeight: 2,
-                scale: 7
+                scale: label ? 10 : 7
             }
         });
 
@@ -129,22 +135,29 @@ const AdvancedMarker = ({ position, color, onClick, children }) => {
         };
     }, [map]); // Depend only on map to create once
 
-    // Update Position & Color
+    // Update Position, Color & Label
     useEffect(() => {
         if (markerRef.current) {
             markerRef.current.setPosition(position);
+            markerRef.current.setLabel(label ? {
+                text: String(label),
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: '900'
+            } : null);
             markerRef.current.setIcon({
                 path: window.google.maps.SymbolPath.CIRCLE,
                 fillColor: color || '#ef4444',
                 fillOpacity: 1,
                 strokeColor: 'white',
                 strokeWeight: 2,
-                scale: 7
+                scale: label ? 10 : 7
             });
         }
-    }, [position.lat, position.lng, color]);
+    }, [position.lat, position.lng, color, label]);
 
-    if (!children || !markerReady) return null;
+    if (!markerReady) return null;
+    if (!children) return null;
     return React.cloneElement(children, { anchor: markerRef.current });
 };
 
@@ -596,10 +609,11 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                         })}
 
                         {/* Markers */}
-                        {dayData.locations.map(loc => (
+                        {dayData.locations.map((loc, idx) => (
                             <AdvancedMarker
                                 key={loc.id}
                                 position={{ lat: loc.lat, lng: loc.lng }}
+                                label={idx + 1}
                                 color={dayData.color}
                                 onClick={() => setInfoWindowOpen(`existing-${loc.id}`)}
                             >
