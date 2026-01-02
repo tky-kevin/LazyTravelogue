@@ -130,7 +130,7 @@ export const ItineraryCard = ({
                                 autoFocus
                             />
                         ) : (
-                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate max-w-[110px] sm:max-w-[160px]" title={item.title}>
+                            <h3 className="text-base font-semibold text-ink m-0 pr-0 truncate max-w-[150px] sm:max-w-[220px]" title={item.title}>
                                 {item.title}
                             </h3>
                         )}

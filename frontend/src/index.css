@@ -6,11 +6,27 @@
 @tailwind utilities;
 
 @layer base {
+
+  /* Use dynamic viewport height for mobile browser compatibility */
+  :root {
+    --vh: 1vh;
+    --dvh: 1dvh;
+  }
+
+  html,
+  body {
+    /* Prevent overscroll/bounce effect on iOS */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
     @apply bg-paper text-ink font-sans antialiased leading-relaxed;
     /* Canvas Texture */
     background-image: radial-gradient(#d1d5db 1px, transparent 1px);
     background-size: 24px 24px;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
   }
 
   /* Headings */
@@ -53,7 +69,30 @@
 }
 
 .safe-area-pb {
-  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Mobile bottom navigation - fixed to actual viewport bottom */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* Use safe-area-inset for devices with home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Full height container using dynamic viewport height */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Main content area that accounts for bottom nav */
+@media (max-width: 767px) {
+  .main-content-mobile {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* --- Google Maps Autocomplete Styling --- */

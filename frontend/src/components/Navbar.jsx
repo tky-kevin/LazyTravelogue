@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Share2, User, LogOut, X, Map as MapIcon, ChevronDown, Bookmark, Presentation } from 'lucide-react';
+import { Search, Share2, User, LogOut, X, Map as MapIcon, ChevronDown, Bookmark, Presentation, Github } from 'lucide-react';
 import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
 import { useItinerary } from '../context/ItineraryContext';
 import { categorizePlace } from '../utils/placeUtils';
 import client from '../api/client';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Sub-components
 import { LIBRARIES } from './navbar/constants';
 import SearchHistory from './navbar/SearchHistory';
 import TripList from './navbar/TripList';
 import PocketList from './navbar/PocketList';
+import MobileSearchModal from './navbar/MobileSearchModal';
 
 export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPocket, onRemoveItem, activeDay, activeDayLabel }) {
     const {
@@ -41,6 +43,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
     const [inputValue, setInputValue] = useState("");
     const [recentSearches, setRecentSearches] = useState([]);
     const [showRecent, setShowRecent] = useState(false);
+    const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
     useEffect(() => {
         const saved = localStorage.getItem('recent_searches');
@@ -86,6 +89,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
             });
             setInputValue(item.name);
             setShowRecent(false);
+            setIsMobileSearchOpen(false);
         } else {
             setInputValue(item.name);
             if (searchInputRef.current) searchInputRef.current.focus();
@@ -134,7 +138,23 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
             saveRecentSearch(place);
             setInputValue(place.name || place.formatted_address);
             setShowRecent(false);
+            setIsMobileSearchOpen(false);
         }
+    };
+
+    // Handler for mobile modal place selection
+    const handleMobilePlaceSelect = (place) => {
+        onLocationSelect({
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            name: place.name,
+            fullAddress: place.formatted_address,
+            placeId: place.place_id,
+            rating: place.rating,
+            user_ratings_total: place.user_ratings_total,
+            category: categorizePlace(place.types),
+            _ts: Date.now()
+        });
     };
 
     const handleShare = async () => {
@@ -156,140 +176,204 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
     };
 
     return (
-        <nav className="h-16 md:h-20 flex items-center justify-between px-4 md:px-12 bg-transparent sticky top-0 z-50">
-            <div className="flex items-center gap-2 shrink-0">
-                <h1 className="font-serif text-xl md:text-2xl font-semibold text-gray-800 tracking-tight">慵懶旅誌</h1>
-                <span className="hidden md:block font-hand text-xl text-primary -rotate-6 mt-1.5 transform">Lazy Travelogue</span>
-            </div>
+        <>
+            <nav className="h-16 md:h-16 flex items-center justify-between px-4 md:px-8 py-1 bg-transparent sticky top-0 z-50 gap-2">
+                <div className="flex items-center gap-2 shrink-0">
+                    <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+                    <h1 className="font-serif text-xl md:text-2xl font-semibold text-gray-800 tracking-tight whitespace-nowrap">慵懶旅誌</h1>
+                </div>
 
-            <div className="flex-1 max-w-sm mx-4 relative">
-                {isLoaded && (
-                    <Autocomplete onLoad={onLoad} onPlaceChanged={onPlaceChanged}>
-                        <div className="relative group">
-                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" />
-                            <input
-                                ref={searchInputRef}
-                                type="text"
-                                placeholder="搜尋地點..."
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onFocus={() => setShowRecent(true)}
-                                onBlur={() => setTimeout(() => setShowRecent(false), 200)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        const pacItems = document.querySelectorAll('.pac-item');
-                                        const hasSelection = document.querySelector('.pac-item-selected');
+                {/* Spacer to push everything to the right */}
+                <div className="flex-1" />
 
-                                        if (pacItems.length > 0 && !hasSelection) {
-                                            e.preventDefault();
-                                            const downEvent = new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true });
-                                            const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true });
-                                            e.target.dispatchEvent(downEvent);
-                                            setTimeout(() => {
-                                                e.target.dispatchEvent(enterEvent);
-                                                searchInputRef.current?.blur();
-                                            }, 100);
-                                        }
-                                    }
-                                }}
-                                className="w-full pl-10 pr-10 py-2 rounded-xl border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
-                            />
-                            {inputValue && (
-                                <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 transition-all">
-                                    <X size={14} />
-                                </button>
-                            )}
-                            {showRecent && !inputValue && recentSearches.length > 0 && (
-                                <SearchHistory recentSearches={recentSearches} onRecentClick={handleRecentClick} />
-                            )}
-                        </div>
-                    </Autocomplete>
-                )}
-            </div>
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                    {/* Mobile: Search Button */}
+                    <button
+                        onClick={() => setIsMobileSearchOpen(true)}
+                        className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    >
+                        <Search size={18} className="" />
+                    </button>
 
-            <div className="flex items-center gap-2 md:gap-4 shrink-0">
-                {user && (
-                    <div className="relative" ref={tripsRef}>
-                        <button onClick={() => setIsTripsOpen(!isTripsOpen)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm text-sm">
-                            <MapIcon size={18} className="text-primary" />
-                            <span className="hidden sm:inline">我的行程</span>
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${isTripsOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        {isTripsOpen && (
-                            <TripList
-                                itineraries={itineraries}
-                                currentItinerary={currentItinerary}
-                                onSelect={(it) => { setCurrentItinerary(it); setIsTripsOpen(false); }}
-                                onCreate={() => {
-                                    createItinerary({
-                                        title: "新行程",
-                                        days: [{ id: `day-${Date.now()}`, date: "Day 1", activities: [] }]
-                                    });
-                                    setIsTripsOpen(false);
-                                }}
-                                onDelete={(id) => { if (window.confirm('確定要刪除這個行程嗎？')) deleteItinerary(id); }}
-                            />
-                        )}
-                    </div>
-                )}
+                    {/* Desktop: Full Search Bar */}
+                    <div className="hidden md:block w-64 lg:w-80 relative">
+                        {isLoaded && (
+                            <Autocomplete onLoad={onLoad} onPlaceChanged={onPlaceChanged}>
+                                <div className="relative group">
+                                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                    <input
+                                        ref={searchInputRef}
+                                        type="text"
+                                        placeholder="搜尋地點..."
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onFocus={() => setShowRecent(true)}
+                                        onBlur={() => setTimeout(() => setShowRecent(false), 200)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const pacItems = document.querySelectorAll('.pac-item');
+                                                const hasSelection = document.querySelector('.pac-item-selected');
 
-                {user && (
-                    <div className="relative" ref={pocketRef}>
-                        <button
-                            onClick={() => setShowPocket(!showPocket)}
-                            className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl border transition-all shadow-sm text-sm font-medium ${showPocket ? 'bg-primary/10 text-primary border-primary/20' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
-                        >
-                            <Bookmark size={18} />
-                            <span className="hidden sm:inline">口袋名單</span>
-                            {pocketList.length > 0 && (
-                                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold bg-primary text-white">
-                                    {pocketList.length}
-                                </span>
-                            )}
-                        </button>
-                        {showPocket && (
-                            <PocketList pocketList={pocketList} onMoveToDay={onMoveFromPocket} onRemove={onRemoveItem} activeDay={activeDay} activeDayLabel={activeDayLabel} />
-                        )}
-                    </div>
-                )}
-
-                <a
-                    href="https://www.canva.com/design/DAG4M_2YyQo/VrmRT-dKPmaOAs4-DcAwHQ/edit?utm_content=DAG4M_2YyQo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hidden sm:flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm group whitespace-nowrap"
-                >
-                    <Presentation size={18} className="text-gray-400 group-hover:text-amber-500 transition-colors" />
-                    <span className="text-sm font-medium">專案簡報</span>
-                </a>
-
-                <button onClick={handleShare} className="flex items-center justify-center p-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm group" title="分享行程">
-                    <Share2 size={18} className="text-gray-400 group-hover:text-emerald-500 transition-colors" />
-                </button>
-
-                {user ? (
-                    <div className="flex items-center gap-3">
-                        <div className="relative" ref={menuRef}>
-                            <div onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-9 h-9 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-white shadow-md cursor-pointer">
-                                {user.picture ? (
-                                    <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white"><User size={20} /></div>
-                                )}
-                            </div>
-                            {isMenuOpen && (
-                                <div className="absolute right-0 top-12 w-32 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2">
-                                        <LogOut size={14} /> 登出
-                                    </button>
+                                                if (pacItems.length > 0 && !hasSelection) {
+                                                    e.preventDefault();
+                                                    const downEvent = new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, which: 40, bubbles: true });
+                                                    const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true });
+                                                    e.target.dispatchEvent(downEvent);
+                                                    setTimeout(() => {
+                                                        e.target.dispatchEvent(enterEvent);
+                                                        searchInputRef.current?.blur();
+                                                    }, 100);
+                                                }
+                                            }
+                                        }}
+                                        className="w-full pl-9 pr-9 py-1.5 rounded-lg border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
+                                    />
+                                    {inputValue && (
+                                        <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 transition-all">
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                    <AnimatePresence>
+                                        {showRecent && !inputValue && recentSearches.length > 0 && (
+                                            <SearchHistory recentSearches={recentSearches} onRecentClick={handleRecentClick} />
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                            )}
-                        </div>
+                            </Autocomplete>
+                        )}
                     </div>
-                ) : (
-                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400"><User size={20} /></div>
-                )}
-            </div>
-        </nav >
+                    {user && (
+                        <div className="relative" ref={tripsRef}>
+                            <button onClick={() => setIsTripsOpen(!isTripsOpen)} className="flex items-center gap-1 md:gap-1.5 h-8 md:h-9 px-2 md:px-2.5 rounded-lg bg-transparent text-gray-600 font-medium hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs md:text-sm">
+                                <MapIcon size={16} className="text-gray-500 shrink-0 group-hover:text-gray-700 transition-colors" />
+                                <span className="hidden sm:inline">我的行程</span>
+                                <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isTripsOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            <AnimatePresence>
+                                {isTripsOpen && (
+                                    <TripList
+                                        itineraries={itineraries}
+                                        currentItinerary={currentItinerary}
+                                        onSelect={(it) => { setCurrentItinerary(it); setIsTripsOpen(false); }}
+                                        onCreate={() => {
+                                            createItinerary({
+                                                title: "新行程",
+                                                days: [{ id: `day-${Date.now()}`, date: "Day 1", activities: [] }]
+                                            });
+                                            setIsTripsOpen(false);
+                                        }}
+                                        onDelete={(id) => { if (window.confirm('確定要刪除這個行程嗎？')) deleteItinerary(id); }}
+                                        onClose={() => setIsTripsOpen(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+
+                    {user && (
+                        <div className="relative" ref={pocketRef}>
+                            <button
+                                onClick={() => setShowPocket(!showPocket)}
+                                className={`flex items-center gap-1 md:gap-1.5 h-8 md:h-9 px-2 md:px-2.5 rounded-lg transition-all text-xs md:text-sm font-medium ${showPocket ? 'bg-primary/10 text-primary' : 'bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200'}`}
+                            >
+                                <Bookmark size={16} className="text-gray-500 shrink-0 group-hover:text-gray-700 transition-colors" />
+                                <span className="hidden sm:inline">口袋名單</span>
+                                {pocketList.length > 0 && (
+                                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold bg-primary text-white">
+                                        {pocketList.length}
+                                    </span>
+                                )}
+                            </button>
+                            <AnimatePresence>
+                                {showPocket && (
+                                    <PocketList
+                                        pocketList={pocketList}
+                                        onMoveToDay={onMoveFromPocket}
+                                        onRemove={onRemoveItem}
+                                        activeDay={activeDay}
+                                        activeDayLabel={activeDayLabel}
+                                        onClose={() => setShowPocket(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    )}
+
+                    <a
+                        href="https://www.canva.com/design/DAG4M_2YyQo/VrmRT-dKPmaOAs4-DcAwHQ/edit?utm_content=DAG4M_2YyQo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-100 transition-all group whitespace-nowrap"
+                        title="專案簡報"
+                    >
+                        <Presentation size={18} className="text-gray-500 group-hover:text-gray-700 transition-colors" />
+                        <span className="hidden md:inline text-sm font-medium">專案簡報</span>
+                    </a>
+
+                    <a
+                        href="https://github.com/tky-kevin/LazyTravelogue"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 transition-all group whitespace-nowrap"
+                        title="GitHub"
+                    >
+                        <Github size={18} className="text-gray-500 group-hover:text-gray-900 transition-colors" />
+                        <span className="hidden md:inline text-sm font-medium">GitHub</span>
+                    </a>
+
+
+                    <button
+                        onClick={handleShare}
+                        className="flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 active:bg-emerald-100 transition-all group whitespace-nowrap"
+                        title="分享行程"
+                    >
+                        <Share2 size={18} className="text-gray-500 group-hover:text-emerald-600 transition-colors" />
+                        <span className="hidden md:inline text-sm font-medium">分享</span>
+                    </button>
+
+                    {user ? (
+                        <div className="flex items-center gap-2">
+                            <div className="relative" ref={menuRef}>
+                                <div onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-8 h-8 md:w-9 md:h-9 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer">
+                                    {user.picture ? (
+                                        <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white"><User size={20} /></div>
+                                    )}
+                                </div>
+                                <AnimatePresence>
+                                    {isMenuOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute right-0 top-10 w-32 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 origin-top-right"
+                                        >
+                                            <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 flex items-center gap-2">
+                                                <LogOut size={14} /> 登出
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-8 h-8 md:w-9 md:h-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-400"><User size={18} /></div>
+                    )}
+                </div>
+            </nav>
+
+            {/* Mobile Search Modal */}
+            <MobileSearchModal
+                isOpen={isMobileSearchOpen}
+                onClose={() => setIsMobileSearchOpen(false)}
+                isLoaded={isLoaded}
+                recentSearches={recentSearches}
+                onRecentClick={handleRecentClick}
+                onPlaceSelect={handleMobilePlaceSelect}
+                saveRecentSearch={saveRecentSearch}
+            />
+        </>
     );
 }

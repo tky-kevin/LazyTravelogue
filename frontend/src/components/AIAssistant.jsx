@@ -180,45 +180,11 @@ export default function AIAssistant({ inline = false }) {
             <div style={{
                 width: '100%',
                 height: '100%',
-                backgroundColor: '#fff',
+                backgroundColor: 'transparent',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden'
             }}>
-                {/* Header */}
-                <div style={{
-                    padding: '1rem',
-                    background: 'var(--pk-primary, #14b8a6)',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.75rem'
-                }}>
-                    <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '50%' }}>
-                        <Sparkles size={18} />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
-                    </div>
-                    <button
-                        onClick={handleNewChat}
-                        style={{
-                            background: 'rgba(255,255,255,0.15)',
-                            border: 'none',
-                            color: '#fff',
-                            padding: '6px',
-                            borderRadius: '50%',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 0.2s',
-                        }}
-                        title="新對話"
-                    >
-                        <RefreshCw size={16} />
-                    </button>
-                </div>
 
                 {/* Chat Area */}
                 <div
@@ -226,7 +192,7 @@ export default function AIAssistant({ inline = false }) {
                     style={{
                         flex: 1,
                         padding: '1rem',
-                        backgroundColor: '#f8fafc',
+                        backgroundColor: 'transparent',
                         overflowY: 'auto',
                         scrollBehavior: 'smooth'
                     }}
@@ -272,12 +238,33 @@ export default function AIAssistant({ inline = false }) {
                 {/* Input Area */}
                 <div style={{
                     padding: '1rem',
-                    borderTop: '1px solid var(--pk-border)',
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
                     display: 'flex',
                     gap: '0.5rem',
-                    backgroundColor: '#fff',
+                    backgroundColor: 'rgba(255,255,255,0.8)',
+                    backdropFilter: 'blur(8px)',
                     paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))'
                 }}>
+                    <button
+                        onClick={handleNewChat}
+                        style={{
+                            background: '#f3f4f6',
+                            border: 'none',
+                            color: '#6b7280',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'background 0.2s',
+                            flexShrink: 0
+                        }}
+                        title="新對話"
+                    >
+                        <RefreshCw size={18} />
+                    </button>
                     <input
                         type="text"
                         value={inputMessage}
@@ -309,7 +296,8 @@ export default function AIAssistant({ inline = false }) {
                             justifyContent: 'center',
                             transition: 'background 0.2s',
                             cursor: inputMessage.trim() ? 'pointer' : 'default',
-                            border: 'none'
+                            border: 'none',
+                            flexShrink: 0
                         }}
                     >
                         <Send size={18} />
@@ -341,59 +329,20 @@ export default function AIAssistant({ inline = false }) {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         className="fixed bottom-0 right-0 md:bottom-[100px] md:right-[30px] w-full h-full md:w-[380px] md:h-[600px] bg-white md:rounded-[2rem] shadow-[var(--shadow-float)] z-[100] flex flex-col overflow-hidden"
                     >
-                        {/* Header */}
+                        {/* Header - Desktop Popup */}
                         <div style={{
-                            padding: '1.25rem',
-                            background: 'var(--pk-primary, #14b8a6)',
-                            color: '#fff',
+                            padding: '1rem 1.25rem',
+                            background: '#f9fafb',
+                            borderBottom: '1px solid #e5e7eb',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem'
                         }}>
-                            <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '50%' }}>
-                                <Sparkles size={18} />
+                            <div style={{ background: '#e5e7eb', padding: '6px', borderRadius: '50%' }}>
+                                <Sparkles size={18} className="text-gray-600" />
                             </div>
                             <div style={{ flex: 1 }}>
-                                <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>旅遊小精靈</h3>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <button
-                                    onClick={handleNewChat}
-                                    style={{
-                                        background: 'rgba(255,255,255,0.15)',
-                                        border: 'none',
-                                        color: '#fff',
-                                        padding: '6px',
-                                        borderRadius: '50%',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background 0.2s',
-                                    }}
-                                    title="新對話"
-                                >
-                                    <RefreshCw size={16} />
-                                </button>
-                                <button
-                                    onClick={() => setIsOpen(false)}
-                                    style={{
-                                        background: 'rgba(255,255,255,0.15)',
-                                        border: 'none',
-                                        color: '#fff',
-                                        padding: '6px',
-                                        borderRadius: '50%',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        transition: 'background 0.2s',
-                                    }}
-                                    className="md:hidden flex"
-                                >
-                                    <X size={18} />
-                                </button>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#374151' }}>旅遊小精靈</h3>
                             </div>
                         </div>
 
@@ -454,6 +403,26 @@ export default function AIAssistant({ inline = false }) {
                             gap: '0.5rem',
                             backgroundColor: '#fff'
                         }}>
+                            <button
+                                onClick={handleNewChat}
+                                style={{
+                                    background: '#f3f4f6',
+                                    border: 'none',
+                                    color: '#6b7280',
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '50%',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'background 0.2s',
+                                    flexShrink: 0
+                                }}
+                                title="新對話"
+                            >
+                                <RefreshCw size={18} />
+                            </button>
                             <input
                                 type="text"
                                 value={inputMessage}
@@ -485,7 +454,8 @@ export default function AIAssistant({ inline = false }) {
                                     justifyContent: 'center',
                                     transition: 'background 0.2s',
                                     cursor: inputMessage.trim() ? 'pointer' : 'default',
-                                    border: 'none'
+                                    border: 'none',
+                                    flexShrink: 0
                                 }}
                             >
                                 <Send size={18} />

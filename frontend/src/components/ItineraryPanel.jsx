@@ -251,7 +251,7 @@ export default function ItineraryPanel({
     return (
         <div className="h-full flex flex-col bg-transparent overflow-hidden">
             {/* Header */}
-            <div className="py-4 px-4 sm:px-6 bg-transparent flex justify-between items-center">
+            <div className="py-0 px-4 md:px-0 bg-transparent flex justify-between items-center">
                 <div className="flex flex-col flex-1 mr-4">
                     <input
                         className="font-sans text-xl leading-none bg-transparent border-b border-transparent focus:border-ink-border focus:bg-surface-alt/50 transition-all outline-none text-ink placeholder-ink-muted/50 w-full px-1 -ml-1 rounded"
@@ -263,9 +263,6 @@ export default function ItineraryPanel({
                         placeholder="點擊輸入行程名稱..."
                         readOnly={readOnly}
                     />
-                    <span className="text-xs text-ink-muted">
-                        {orderedDayKeys.length} 天旅程 • {pocketList.length} 個收藏
-                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="relative z-20">
@@ -292,7 +289,7 @@ export default function ItineraryPanel({
                     </div>
                     <button
                         onClick={handleOptimize}
-                        className="p-2 text-amber-500 bg-amber-50 rounded-xl hover:bg-amber-100 transition-colors border border-amber-200 shadow-sm"
+                        className="p-2 text-amber-500 bg-transparent rounded-xl hover:bg-amber-50 active:bg-amber-100 transition-colors"
                         title="根據交通時間自動排序"
                     >
                         <Sparkles size={16} />
@@ -306,7 +303,7 @@ export default function ItineraryPanel({
                 values={orderedDayKeys}
                 onReorder={onDayReorder}
                 ref={daysListRef}
-                className="flex gap-3 px-4 py-3 bg-transparent overflow-x-auto no-scrollbar list-none"
+                className="flex gap-3 px-4 md:px-1 pt-3 pb-1 bg-transparent overflow-x-auto no-scrollbar list-none w-fit mx-auto max-w-full"
                 style={{
                     maskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
                     WebkitMaskImage: `linear-gradient(to right, ${daysAtStart ? 'black' : 'transparent'}, black 20px, black calc(100% - 20px), ${daysAtEnd ? 'black' : 'transparent'})`,
@@ -345,14 +342,14 @@ export default function ItineraryPanel({
                                 onClick={() => onDayChange(dayKey)}
                                 onPointerDown={() => onDayChange(dayKey)} // Set focus immediately on touch/click
                                 className={`
-                                    w-16 h-16 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-none
+                                    w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-none
                                     ${activeDay === dayKey
                                         ? 'bg-teal-50 border-2 border-primary text-primary shadow-md'
                                         : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
                                 `}
                             >
-                                <span className="text-xl font-bold">{label}</span>
-                                <span className="text-xs opacity-80">{dateStr}</span>
+                                <span className="text-lg font-bold">{label}</span>
+                                <span className="text-[10px] opacity-80">{dateStr}</span>
                             </button>
                         </Reorder.Item>
                     );
@@ -362,7 +359,7 @@ export default function ItineraryPanel({
             {/* Timeline */}
             <div
                 ref={timelineRef}
-                className="flex-1 overflow-y-auto py-6 bg-transparent"
+                className="flex-1 overflow-y-auto pt-3 pb-6 bg-transparent"
                 style={{
                     maskImage: isAtBottom
                         ? 'linear-gradient(to bottom, transparent, black 40px, black 100%)'
@@ -376,17 +373,17 @@ export default function ItineraryPanel({
                     setIsAtBottom((scrollHeight - clientHeight - scrollTop) <= 5);
                 }}
             >
-                <div className="max-w-[400px] mx-auto px-4 sm:px-0">
+                <div className="max-w-[500px] mx-auto px-4 sm:px-0">
                     {/* Start Time Picker - Custom UI */}
-                    <div className="flex justify-center mb-6 relative z-30">
+                    <div className="flex justify-center mb-3 relative z-30">
                         {/* Trigger Button */}
                         <div
-                            className={`relative flex items-center gap-2 bg-white border shadow-sm px-4 py-2 rounded-full transition-all cursor-pointer group w-fit ${showTimePicker ? 'border-primary ring-2 ring-primary/10' : 'border-gray-200 hover:border-primary/30'}`}
+                            className={`relative flex items-center gap-2 bg-transparent px-3 py-2 rounded-full transition-all cursor-pointer group w-fit hover:bg-gray-100 active:bg-gray-200 ${showTimePicker ? 'bg-primary/5' : ''}`}
                             onClick={() => setShowTimePicker(!showTimePicker)}
                         >
-                            <Clock size={16} className={`transition-colors group-hover:scale-110 duration-300 ${showTimePicker ? 'text-primary' : 'text-primary/70'}`} />
+                            <Clock size={16} className={`transition-colors group-hover:scale-110 duration-300 ${showTimePicker ? 'text-gray-700' : 'text-gray-500'}`} />
                             <span className="text-sm text-gray-500 font-medium">出發時間</span>
-                            <div className="w-[1px] h-3 bg-gray-200 mx-1"></div>
+                            <div className="w-[1px] h-3 bg-gray-300 mx-1"></div>
                             <span className="font-sans text-sm font-bold text-gray-800 w-[45px] text-center">
                                 {startTime || '09:00'}
                             </span>

@@ -22,11 +22,11 @@ export const getCategoryConfig = (catId) => CATEGORY_OPTIONS.find(c => c.id === 
 
 export const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
     <button
-        className="group flex items-center gap-2.5 px-4 py-2 bg-white/50 backdrop-blur-sm border border-ink-border rounded-2xl text-ink text-sm shadow-sm transition-all hover:bg-white hover:border-primary/30 hover:shadow-md active:scale-95 font-sans"
+        className="group flex items-center gap-2.5 px-3 py-2 bg-transparent rounded-2xl text-ink text-sm transition-all hover:bg-gray-100 active:bg-gray-200 font-sans"
         onClick={onClick}
         ref={ref}
     >
-        <CalendarIcon size={16} className="text-primary transition-transform group-hover:scale-110" />
+        <CalendarIcon size={16} className="text-gray-500 transition-transform group-hover:scale-110 group-hover:text-gray-700" />
         <span className="font-medium">{value || '選擇日期'}</span>
     </button>
 ));

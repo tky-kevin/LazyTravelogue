@@ -1,22 +1,43 @@
-import { Plus, Check, Trash2 } from 'lucide-react';
+import { Plus, Check, Trash2, X } from 'lucide-react';
+import { motion } from 'framer-motion';
 
-const TripList = ({ itineraries, currentItinerary, onSelect, onCreate, onDelete }) => {
+const TripList = ({ itineraries, currentItinerary, onSelect, onCreate, onDelete, onClose }) => {
     return (
-        <div className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 top-12 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-50"
+        >
             <div className="px-4 py-2 border-b border-gray-50 flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">最近行程</span>
-                <button
-                    onClick={onCreate}
-                    className="p-1 hover:bg-primary/10 rounded-full text-primary transition-colors"
-                    title="新增行程"
-                >
-                    <Plus size={16} />
-                </button>
+                <div className="flex gap-1">
+                    <button
+                        onClick={onCreate}
+                        className="p-1 hover:bg-primary/10 rounded-full text-primary transition-colors"
+                        title="新增行程"
+                    >
+                        <Plus size={16} />
+                    </button>
+                    {onClose && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onClose(); }}
+                            className="p-1 hover:bg-gray-100 rounded-full text-gray-400 transition-colors md:hidden"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
             </div>
-            <div className="max-h-60 overflow-y-auto py-1">
+            <div className="max-h-60 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                 {itineraries.map((it) => (
-                    <div
+                    <motion.div
                         key={it._id || it.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
                         className={`group w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${(currentItinerary?._id || currentItinerary?.id) === (it._id || it.id) ? 'bg-primary/5' : ''}`}
                         onClick={() => onSelect(it)}
                     >
@@ -45,10 +66,10 @@ const TripList = ({ itineraries, currentItinerary, onSelect, onCreate, onDelete 
                                 <Trash2 size={14} />
                             </button>
                         </div>
-                    </div>
+                    </motion.div>
                 ))}
             </div>
-        </div>
+        </motion.div>
     );
 };
 
