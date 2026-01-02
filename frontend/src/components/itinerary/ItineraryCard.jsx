@@ -106,13 +106,28 @@ export const ItineraryCard = ({
             </div>
 
             <motion.div
-                className="relative flex gap-3 p-3 sm:p-4 bg-surface rounded-lg border border-ink-border shadow-paper flex-1 group"
+                className="relative flex gap-3 p-3 sm:p-4 bg-surface rounded-lg border border-ink-border shadow-paper flex-1 group select-none-mobile"
                 initial={{ opacity: 0, y: 20 }}
                 animate={isDragging ? animateDragging : animateNormal}
                 whileHover={!isEditing && !readOnly ? whileHoverAnim : {}}
                 whileTap={!isEditing && !readOnly ? whileTapAnim : {}}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+
                 onClick={!isEditing && !readOnly ? onClick : undefined}
+                onPointerDown={(e) => {
+                    if (readOnly || isEditing) return;
+                    // Mobile long-press logic
+                    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+                    if (isMobile) {
+                        const timer = setTimeout(() => {
+                            dragControls.start(e);
+                            if (navigator.vibrate) navigator.vibrate(50);
+                        }, 500);
+                        e.target.addEventListener('pointerup', () => clearTimeout(timer), { once: true });
+                        e.target.addEventListener('pointercancel', () => clearTimeout(timer), { once: true });
+                        e.target.addEventListener('pointermove', () => clearTimeout(timer), { once: true }); // Cancel if moved before long press
+                    }
+                }}
             >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${catConfig.bg} ${catConfig.text} ${catConfig.border}`}>
                     <CatIcon size={16} />
@@ -157,7 +172,7 @@ export const ItineraryCard = ({
                                 <>
                                     <button
                                         onClick={handleGoogleNav}
-                                        className="hidden group-hover:block p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                                        className="block md:hidden md:group-hover:block p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
                                         title="Google Map 查看"
                                     >
                                         <Navigation size={14} />
@@ -166,7 +181,7 @@ export const ItineraryCard = ({
                                         <>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                                                className="hidden group-hover:block p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-full transition-colors"
+                                                className="block md:hidden md:group-hover:block p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-full transition-colors"
                                                 title="編輯資訊"
                                             >
                                                 <Pencil size={14} />
@@ -176,13 +191,13 @@ export const ItineraryCard = ({
                                                     e.stopPropagation();
                                                     onRemove && onRemove();
                                                 }}
-                                                className="hidden group-hover:block p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                                className="block md:hidden md:group-hover:block p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
                                                 title="移除地點"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
                                             <div
-                                                className="p-1.5 text-ink-muted cursor-grab touch-none"
+                                                className="hidden md:block p-1.5 text-ink-muted cursor-grab touch-none"
                                                 onPointerDown={(e) => dragControls.start(e)}
                                             >
                                                 <GripVertical size={18} />

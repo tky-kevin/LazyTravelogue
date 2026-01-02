@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Reorder, motion, AnimatePresence } from 'framer-motion';
+import { Reorder, motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { Clock, Sparkles } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
@@ -13,6 +13,74 @@ import { CustomDateInput } from './itinerary/constants';
 import TimeSelector from './itinerary/TimeSelector';
 import { DraggableItineraryItem } from './itinerary/ItineraryCard';
 
+const DraggableDayItem = ({ dayKey, index, startDate, activeDay, onDayChange, onDayDragEnd }) => {
+    const controls = useDragControls();
+    const [isLongPress, setIsLongPress] = useState(false);
+    const timeoutRef = useRef(null);
+
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+    const handlePointerDown = (e) => {
+        if (!isMobile) return; // Desktop handles drag via default dragListener
+
+        // Mobile: Start long press timer
+        timeoutRef.current = setTimeout(() => {
+            setIsLongPress(true);
+            controls.start(e);
+            if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
+        }, 500);
+    };
+
+    const handlePointerUp = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setIsLongPress(false);
+    };
+
+    const date = addDays(startDate, index);
+    const dateStr = format(date, 'M/d');
+    const label = `${index + 1}`;
+
+    return (
+        <Reorder.Item
+            value={dayKey}
+            dragListener={!isMobile} // Desktop: true (default drag), Mobile: false (manual via long-press)
+            dragControls={controls}
+            layout
+            onDragEnd={onDayDragEnd}
+            whileDrag={{
+                scale: 1.15,
+                zIndex: 50
+            }}
+            animate={{
+                scale: activeDay === dayKey ? 1.05 : 1,
+                zIndex: activeDay === dayKey ? 10 : 1
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
+            className="shrink-0 list-none rounded-full select-none"
+            style={{ WebkitTapHighlightColor: 'transparent' }}
+        >
+            <button
+                // Handle both selection and drag initiation
+                onPointerDown={(e) => {
+                    onDayChange(dayKey);
+                    if (isMobile) handlePointerDown(e);
+                }}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+                className={`
+                    w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-pan-x
+                    ${activeDay === dayKey
+                        ? 'bg-teal-50 border-2 border-primary text-primary shadow-md'
+                        : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
+                `}
+            >
+                <span className="text-lg font-bold">{label}</span>
+                <span className="text-[10px] opacity-80">{dateStr}</span>
+            </button>
+        </Reorder.Item>
+    );
+};
 
 export default function ItineraryPanel({
     activeDay,
@@ -314,46 +382,17 @@ export default function ItineraryPanel({
                     setDaysAtEnd((scrollWidth - clientWidth - scrollLeft) <= 5);
                 }}
             >
-                {orderedDayKeys.map((dayKey, index) => {
-                    // Display Label is purely based on Current Index
-                    const label = `${index + 1}`;
-                    const date = addDays(startDate, index);
-                    const dateStr = format(date, 'M/d');
-
-                    return (
-                        <Reorder.Item
-                            key={dayKey}
-                            value={dayKey}
-                            layout
-                            onDragEnd={onDayDragEnd}
-                            whileDrag={{
-                                scale: 1.15,
-                                zIndex: 50
-                            }}
-                            animate={{
-                                scale: activeDay === dayKey ? 1.05 : 1,
-                                zIndex: activeDay === dayKey ? 10 : 1
-                            }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
-                            className="shrink-0 list-none rounded-full"
-                            style={{ WebkitTapHighlightColor: 'transparent' }}
-                        >
-                            <button
-                                onClick={() => onDayChange(dayKey)}
-                                onPointerDown={() => onDayChange(dayKey)} // Set focus immediately on touch/click
-                                className={`
-                                    w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-none
-                                    ${activeDay === dayKey
-                                        ? 'bg-teal-50 border-2 border-primary text-primary shadow-md'
-                                        : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
-                                `}
-                            >
-                                <span className="text-lg font-bold">{label}</span>
-                                <span className="text-[10px] opacity-80">{dateStr}</span>
-                            </button>
-                        </Reorder.Item>
-                    );
-                })}
+                {orderedDayKeys.map((dayKey, index) => (
+                    <DraggableDayItem
+                        key={dayKey}
+                        dayKey={dayKey}
+                        index={index}
+                        startDate={startDate}
+                        activeDay={activeDay}
+                        onDayChange={onDayChange}
+                        onDayDragEnd={onDayDragEnd}
+                    />
+                ))}
             </Reorder.Group>
 
             {/* Timeline */}

@@ -93,6 +93,11 @@
   .main-content-mobile {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
   }
+
+  .select-none-mobile {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
 /* --- Google Maps Autocomplete Styling --- */

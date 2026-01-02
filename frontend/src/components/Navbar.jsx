@@ -246,7 +246,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                         <div className="relative" ref={tripsRef}>
                             <button onClick={() => setIsTripsOpen(!isTripsOpen)} className="flex items-center gap-1 md:gap-1.5 h-8 md:h-9 px-2 md:px-2.5 rounded-lg bg-transparent text-gray-600 font-medium hover:bg-gray-100 active:bg-gray-200 transition-colors text-xs md:text-sm">
                                 <MapIcon size={16} className="text-gray-500 shrink-0 group-hover:text-gray-700 transition-colors" />
-                                <span className="hidden sm:inline">我的行程</span>
+                                <span className="hidden md:inline">我的行程</span>
                                 <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${isTripsOpen ? 'rotate-180' : ''}`} />
                             </button>
                             <AnimatePresence>
@@ -277,7 +277,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                                 className={`flex items-center gap-1 md:gap-1.5 h-8 md:h-9 px-2 md:px-2.5 rounded-lg transition-all text-xs md:text-sm font-medium ${showPocket ? 'bg-primary/10 text-primary' : 'bg-transparent text-gray-600 hover:bg-gray-100 active:bg-gray-200'}`}
                             >
                                 <Bookmark size={16} className="text-gray-500 shrink-0 group-hover:text-gray-700 transition-colors" />
-                                <span className="hidden sm:inline">口袋名單</span>
+                                <span className="hidden md:inline">口袋名單</span>
                                 {pocketList.length > 0 && (
                                     <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-bold bg-primary text-white">
                                         {pocketList.length}
@@ -303,22 +303,22 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                         href="https://www.canva.com/design/DAG4M_2YyQo/VrmRT-dKPmaOAs4-DcAwHQ/edit?utm_content=DAG4M_2YyQo&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-100 transition-all group whitespace-nowrap"
+                        className="hidden sm:flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-100 transition-all group whitespace-nowrap"
                         title="專案簡報"
                     >
                         <Presentation size={18} className="text-gray-500 group-hover:text-gray-700 transition-colors" />
-                        <span className="hidden md:inline text-sm font-medium">專案簡報</span>
+                        <span className="hidden xl:inline text-sm font-medium">專案簡報</span>
                     </a>
 
                     <a
                         href="https://github.com/tky-kevin/LazyTravelogue"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 transition-all group whitespace-nowrap"
+                        className="hidden sm:flex items-center justify-center md:justify-start gap-1.5 h-8 w-8 md:w-auto md:h-9 md:px-2.5 rounded-lg bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 transition-all group whitespace-nowrap"
                         title="GitHub"
                     >
                         <Github size={18} className="text-gray-500 group-hover:text-gray-900 transition-colors" />
-                        <span className="hidden md:inline text-sm font-medium">GitHub</span>
+                        <span className="hidden xl:inline text-sm font-medium">GitHub</span>
                     </a>
 
 
