@@ -226,7 +226,7 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                                                 }
                                             }
                                         }}
-                                        className="w-full pl-9 pr-9 py-1.5 rounded-lg border border-gray-200 bg-white/80 focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none font-sans text-sm text-gray-800 placeholder-gray-400 shadow-sm"
+                                        className="w-full pl-9 pr-9 py-1.5 border-b border-gray-300 bg-transparent focus:border-primary transition-colors outline-none font-sans text-sm text-gray-800 placeholder-gray-500"
                                     />
                                     {inputValue && (
                                         <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-100 transition-all">

@@ -289,7 +289,7 @@ export default function ItineraryPanel({
                     </div>
                     <button
                         onClick={handleOptimize}
-                        className="p-2 text-amber-500 bg-transparent rounded-xl hover:bg-amber-50 active:bg-amber-100 transition-colors"
+                        className="p-2 text-gray-400 bg-transparent rounded-xl hover:text-amber-500 hover:bg-amber-50 active:bg-amber-100 transition-colors"
                         title="根據交通時間自動排序"
                     >
                         <Sparkles size={16} />

@@ -106,6 +106,20 @@
   padding-bottom: 0.5rem;
   /* Position fix if needed, though Google handles absolute usually */
   z-index: 9999 !important;
+  transform-origin: top;
+  animation: slideDownFade 0.15s ease-out;
+}
+
+@keyframes slideDownFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-5px) scaleY(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
 }
 
 /* Hide the logo if specific requirement, but usually better to style around it */
