@@ -238,6 +238,7 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         language: 'zh-TW'
     });
 
+    const [map, setMap] = useState(null);
     const mapRef = useRef(null);
     const [infoWindowOpen, setInfoWindowOpen] = useState(null);
     const [renderedRoutes, setRenderedRoutes] = useState({}); // key -> routeResult
@@ -349,11 +350,13 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         });
     }, [days, itineraryData, selectedDays]);
 
-    const onLoad = useCallback((map) => {
-        mapRef.current = map;
+    const onLoad = useCallback((mapInstance) => {
+        setMap(mapInstance);
+        mapRef.current = mapInstance;
     }, []);
 
     const onUnmount = useCallback(() => {
+        setMap(null);
         mapRef.current = null;
     }, []);
 
@@ -471,27 +474,33 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
 
     // Simplified View Logic: We only move programmatically via refs to ensure smoothness
     useEffect(() => {
-        if (isLoaded && mapRef.current) {
+        if (isLoaded && map) {
             if (selectedLocation) {
-                const target = { lat: selectedLocation.lat, lng: selectedLocation.lng };
+                const target = {
+                    lat: parseFloat(selectedLocation.lat),
+                    lng: parseFloat(selectedLocation.lng)
+                };
                 setInfoWindowOpen('search-result');
-                mapRef.current.panTo(target);
+                map.panTo(target);
 
                 // Only zoom in if we are too far out
-                if (mapRef.current.getZoom() < 15) {
-                    mapRef.current.setZoom(15);
+                if (map.getZoom() < 15) {
+                    map.setZoom(15);
                 }
             } else if (focusedLocation) {
-                const target = { lat: parseFloat(focusedLocation.lat), lng: parseFloat(focusedLocation.lng) };
+                const target = {
+                    lat: parseFloat(focusedLocation.lat),
+                    lng: parseFloat(focusedLocation.lng)
+                };
                 setInfoWindowOpen(`existing-${focusedLocation.id}`);
-                mapRef.current.panTo(target);
+                map.panTo(target);
 
-                if (mapRef.current.getZoom() < 16) {
-                    mapRef.current.setZoom(16);
+                if (map.getZoom() < 16) {
+                    map.setZoom(16);
                 }
             }
         }
-    }, [isLoaded, selectedLocation?.placeId, focusedLocation?.id]);
+    }, [isLoaded, map, selectedLocation?.lat, selectedLocation?.lng, selectedLocation?._ts, focusedLocation?.id, focusedLocation?._ts]);
 
     if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
         return <div className="p-8 text-center text-gray-500">Missing API Key</div>;

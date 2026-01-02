@@ -64,7 +64,13 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
         const newEntry = {
             name: place.name,
             address: place.formatted_address,
-            place_id: place.place_id
+            place_id: place.place_id,
+            // Also save coordinates and category for map navigation
+            lat: place.geometry?.location?.lat(),
+            lng: place.geometry?.location?.lng(),
+            category: categorizePlace(place.types),
+            rating: place.rating,
+            user_ratings_total: place.user_ratings_total
         };
 
         setRecentSearches(prev => {
@@ -77,14 +83,27 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
     };
 
     const handleRecentClick = (item) => {
-        // Technically we can't fully emulate an Autocomplete selection without fetching details.
-        // But for UX, we can just populate the input. User still needs to select from Google's list 
-        // to get the full geometry if we assume 'item' is partial.
-        // However, if we want to "Restore" a search, we might need a different flow.
-        // For now: Just populate input and let them click or re-search.
-        setInputValue(item.name);
-        if (searchInputRef.current) searchInputRef.current.focus();
-        setShowRecent(false);
+        // If we have coordinates, navigate the map directly
+        if (item.lat && item.lng) {
+            onLocationSelect({
+                lat: parseFloat(item.lat),
+                lng: parseFloat(item.lng),
+                name: item.name,
+                fullAddress: item.address,
+                placeId: item.place_id,
+                rating: item.rating,
+                user_ratings_total: item.user_ratings_total,
+                category: item.category || 'other',
+                _ts: Date.now() // Timestamp to force re-trigger even for same location
+            });
+            setInputValue(item.name);
+            setShowRecent(false);
+        } else {
+            // Fallback for old entries without coordinates: just populate input
+            setInputValue(item.name);
+            if (searchInputRef.current) searchInputRef.current.focus();
+            setShowRecent(false);
+        }
     };
 
     const clearSearch = () => {
@@ -134,7 +153,8 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                 placeId: place.place_id,
                 rating: place.rating,
                 user_ratings_total: place.user_ratings_total,
-                category: categorizePlace(place.types)
+                category: categorizePlace(place.types),
+                _ts: Date.now()
             });
 
             // Save to history
@@ -239,7 +259,10 @@ export default function Navbar({ onLocationSelect, pocketList = [], onMoveFromPo
                                     {recentSearches.map((item) => (
                                         <button
                                             key={item.place_id}
-                                            onClick={() => handleRecentClick(item)}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault(); // Prevent input blur from closing it before action
+                                                handleRecentClick(item);
+                                            }}
                                             className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex flex-col gap-0.5 transition-colors group/item"
                                         >
                                             <span className="text-sm text-gray-700 font-medium group-hover/item:text-primary transition-colors truncate w-full">
