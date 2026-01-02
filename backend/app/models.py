@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any, Annotated
 from datetime import datetime
 from bson import ObjectId
 
-# Helper for Pydantic v2 + MongoDB ObjectId
+# Pydantic v2 + MongoDB ObjectId helper
 PyObjectId = Annotated[str, BeforeValidator(str)]
 
 class User(BaseModel):
@@ -24,7 +24,7 @@ class Location(BaseModel):
     lat: float
     lng: float
     transportMode: Optional[str] = "DRIVING"
-    stayDuration: int = 60 # minutes
+    stayDuration: int = 60 # Minutes
     durationValue: int = 0
     distance: Optional[str] = None
     duration: Optional[str] = None
@@ -86,7 +86,7 @@ class KnowledgeArticle(BaseModel):
     url: str
     title: str
     content_chunk: str
-    embedding: Optional[List[float]] = None # Vector for Atlas Search
+    embedding: Optional[List[float]] = None # Vector Search
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     model_config = ConfigDict(

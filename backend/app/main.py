@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from app.database import close_mongo_connection, connect_to_mongo
 from app.routes import auth, itinerary, assistant
 from app.scheduler import start_scheduler, shutdown_scheduler
-import os
-from dotenv import load_dotenv
+from app.core.config import settings
+from app.core.logging import setup_logging
+from app.core.exceptions import setup_exception_handlers
 
-load_dotenv()
-
+# Initialize logging
+setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,9 +21,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="LazyTravelogue API", version="1.0.0", lifespan=lifespan)
 
-origins = os.getenv(
-    "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://lazy-travelogue.vercel.app"
-).split(",")
+# Setup global exception handlers
+setup_exception_handlers(app)
+
+origins = settings.ALLOWED_ORIGINS.split(",")
 
 app.add_middleware(
     CORSMiddleware,

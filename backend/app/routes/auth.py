@@ -5,10 +5,11 @@ from google.auth.transport import requests
 from app.database import get_database
 from app.models import User
 from app.auth import create_access_token
-import os
+from app.core.config import settings
+from app.core.logging import logger
 
 router = APIRouter()
-CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+CLIENT_ID = settings.GOOGLE_CLIENT_ID
 
 
 class GoogleAuthRequest(BaseModel):
@@ -44,14 +45,14 @@ async def google_login(request: GoogleAuthRequest, response: Response):
         access_token = create_access_token(data={"sub": user_id, "email": email})
 
         # Set environment-specific cookie settings
-        is_production = os.getenv("VERCEL") or os.getenv("PROD")
+        is_prod = settings.is_production
         
         response.set_cookie(
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=True if is_production else False,
-            samesite="none" if is_production else "lax",
+            secure=True if is_prod else False,
+            samesite="none" if is_prod else "lax",
             max_age=60 * 60 * 24 * 7 # 7 days
         )
 
@@ -62,9 +63,10 @@ async def google_login(request: GoogleAuthRequest, response: Response):
         }
 
     except ValueError:
+        logger.warning("Invalid Google Token provided")
         raise HTTPException(status_code=401, detail="Invalid Google Token")
     except Exception as e:
-        print(f"Auth Error: {e}")
+        logger.error(f"Auth Error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @router.post("/auth/logout")

@@ -16,7 +16,8 @@ dependencies = [
     "email-validator",
     "beautifulsoup4",
     "apscheduler",
-    "langchain"
+    "langchain",
+    "pydantic-settings"
 ]
 
 [tool.ruff]

@@ -1,9 +1,6 @@
-import os
 from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-
-load_dotenv()
-
+from app.core.config import settings
+from app.core.logging import logger
 
 class Database:
     client: AsyncIOMotorClient = None
@@ -13,20 +10,20 @@ db = Database()
 
 
 async def connect_to_mongo():
-    mongo_uri = os.getenv("MONGODB_URI")
+    mongo_uri = settings.MONGODB_URI
     if not mongo_uri:
-        print("WARNING: MONGODB_URI not set in .env")
+        logger.warning("MONGODB_URI not set in environment")
         return
 
     db.client = AsyncIOMotorClient(mongo_uri)
-    print("Connected to MongoDB")
+    logger.info("Connected to MongoDB")
 
 
 async def close_mongo_connection():
     if db.client:
         db.client.close()
-        print("Closed MongoDB connection")
+        logger.info("Closed MongoDB connection")
 
 
 def get_database():
-    return db.client.get_database("lazytravelogue")
+    return db.client.get_database(settings.DATABASE_NAME)

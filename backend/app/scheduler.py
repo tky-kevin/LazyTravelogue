@@ -1,10 +1,11 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.services.crawler import crawl_and_index
+from app.core.logging import logger
 
 scheduler = AsyncIOScheduler()
 
 async def scheduled_crawl_job():
-    print("Running scheduled crawler...")
+    logger.info("Running scheduled crawler...")
     targets = [
         "https://bunnyann.tw/post-sitemap.xml"
     ] 
@@ -12,15 +13,15 @@ async def scheduled_crawl_job():
         try:
             await crawl_and_index(url)
         except Exception as e:
-            print(f"Failed to crawl {url}: {e}")
+            logger.error(f"Scheduled crawl failed for {url}: {e}")
 
 def start_scheduler():
     if not scheduler.running:
         scheduler.add_job(scheduled_crawl_job, 'interval', hours=24)
         scheduler.start()
-        print("Scheduler started.")
+        logger.info("Scheduler started.")
 
 def shutdown_scheduler():
     if scheduler.running:
         scheduler.shutdown()
-        print("Scheduler shutdown.")
+        logger.info("Scheduler shutdown.")

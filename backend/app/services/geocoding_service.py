@@ -1,7 +1,7 @@
-import os
 import httpx
 from typing import Optional, Dict, Tuple
 import logging
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ class GeocodingService:
     @staticmethod
     async def geocode_place(place_name: str, fallback_lat: Optional[float] = None, fallback_lng: Optional[float] = None) -> Tuple[float, float]:
         """Convert a place name to coordinates, with optional AI fallback."""
-        api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+        api_key = settings.GOOGLE_MAPS_API_KEY
         
         if not api_key:
             logger.warning("Google Maps API Key not found, using fallback coordinates")

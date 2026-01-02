@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from app.services.rag_service import index_document
 from app.database import get_database
+from app.core.logging import logger
 
 CRAWL_DELAY = 2  # Delay between requests (seconds)
 
@@ -19,11 +20,10 @@ async def is_url_indexed(url: str) -> bool:
 
 async def crawl_and_index(url: str, max_pages: int = 10):
     try:
-        # Check if URL is a sitemap
         if "sitemap" in url and url.endswith(".xml"):
             return await crawl_sitemap(url, max_pages)
 
-        print(f"Crawling {url}...")
+        logger.info(f"Crawling {url}...")
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         
@@ -66,12 +66,12 @@ async def crawl_and_index(url: str, max_pages: int = 10):
             return False, "No valid content found to index"
 
     except Exception as e:
-        print(f"Crawler error: {e}")
+        logger.error(f"Crawler error for {url}: {e}")
         return False, str(e)
 
 async def collect_urls_from_sitemap(sitemap_url: str) -> list:
-    """Collect all article URLs from sitemap (including sub-sitemaps)"""
-    print(f"Reading sitemap: {sitemap_url}")
+    """Collect article URLs from sitemap index or list"""
+    logger.info(f"Reading sitemap: {sitemap_url}")
     all_urls = []
     
     try:
@@ -79,22 +79,19 @@ async def collect_urls_from_sitemap(sitemap_url: str) -> list:
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'xml')
         
-        # Check for sitemap index (contains <sitemap> tags)
         sitemaps = soup.find_all('sitemap')
         if sitemaps:
-            print(f"Found {len(sitemaps)} sub-sitemaps")
+            logger.info(f"Found {len(sitemaps)} sub-sitemaps")
             for sm in sitemaps:
                 loc = sm.find('loc').text
-                # Process only post-sitemaps
                 if "post-sitemap" in loc:
-                    print(f"  → Processing sub-sitemap: {loc}")
+                    logger.info(f"  → Processing sub-sitemap: {loc}")
                     sub_urls = await collect_urls_from_sitemap(loc)
                     all_urls.extend(sub_urls)
             return all_urls
         
-        # Regular sitemap with <url> tags
         urls = soup.find_all('url')
-        print(f"  Found {len(urls)} URLs")
+        logger.info(f"Found {len(urls)} URLs in sitemap")
         
         for url_tag in urls:
             loc = url_tag.find('loc')
@@ -123,32 +120,22 @@ async def collect_urls_from_sitemap(sitemap_url: str) -> list:
         return all_urls
         
     except Exception as e:
-        print(f"Error reading sitemap {sitemap_url}: {e}")
+        logger.error(f"Error reading sitemap {sitemap_url}: {e}")
         return []
 
 
 async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
     """Crawl articles from sitemap, prioritizing newest"""
-    print(f"="*60)
-    print(f"Starting crawler (Max new articles: {max_pages if max_pages > 0 else 'Unlimited'})")
-    print(f"="*60)
-    
     try:
-        # Phase 1: Collect URLs from all sitemaps
-        print("\n[Phase 1] Collecting URLs from all sitemaps...")
+        logger.info(f"Sitemap Crawl Start (Max: {max_pages if max_pages > 0 else '∞'})")
         all_url_entries = await collect_urls_from_sitemap(sitemap_url)
         
         if not all_url_entries:
             return False, "No URLs found in sitemap"
         
-        # Phase 2: Sort by date (newest first)
         all_url_entries.sort(key=lambda x: x['lastmod'], reverse=True)
-        print(f"\n[Stats] Total URLs collected: {len(all_url_entries)}")
-        print(f"   Newest: {all_url_entries[0]['lastmod']} - {all_url_entries[0]['url'][:60]}...")
-        print(f"   Oldest: {all_url_entries[-1]['lastmod']} - {all_url_entries[-1]['url'][:60]}...")
+        logger.info(f"Total URLs collected: {len(all_url_entries)}")
         
-        # Phase 3: Crawl new articles
-        print(f"\n[Phase 2] Crawling new articles...")
         indexed_count = 0
         skipped_count = 0
         
@@ -160,38 +147,22 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
                 skipped_count += 1
                 continue
             
-            # 爬取新文章
-            print(f"\n[{indexed_count + 1}/{max_pages if max_pages > 0 else '∞'}] Crawling: {url}")
+            logger.info(f"[{indexed_count + 1}/{max_pages if max_pages > 0 else '∞'}] Crawling: {url}")
             success, msg = await crawl_and_index(url)
             
             if success:
                 indexed_count += 1
-                print(f"  [OK] {msg}")
             else:
-                print(f"  [FAIL] {msg}")
+                logger.warning(f"Failed to index {url}: {msg}")
             
-            # Rate limiting
-            print(f"  [WAIT] {CRAWL_DELAY}s before next request...")
             await asyncio.sleep(CRAWL_DELAY)
             
-            # 檢查是否達到目標數量
             if max_pages > 0 and indexed_count >= max_pages:
-                print(f"\n[DONE] Reached target of {max_pages} new articles")
                 break
         
-        # 總結
-        print(f"\n" + "="*60)
-        print(f"SUMMARY")
-        print(f"="*60)
-        print(f"   New articles indexed: {indexed_count}")
-        print(f"   Already indexed (skipped): {skipped_count}")
-        print(f"   Total in sitemap: {len(all_url_entries)}")
-        
-        if indexed_count == 0 and skipped_count > 0:
-            return True, f"Indexed 0 new articles (all {skipped_count} already indexed)"
-        
-        return True, f"Indexed {indexed_count} new articles (skipped {skipped_count} already indexed)"
+        logger.info(f"Indexed {indexed_count}, Skipped {skipped_count}, Total {len(all_url_entries)}")
+        return True, f"Success: {indexed_count} new, {skipped_count} skipped"
         
     except Exception as e:
-        print(f"Sitemap error: {e}")
+        logger.error(f"Sitemap error: {e}")
         return False, str(e)

@@ -12,3 +12,4 @@ email-validator
 beautifulsoup4
 apscheduler
 lxml
+pydantic-settings

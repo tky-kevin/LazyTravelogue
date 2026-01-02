@@ -35,4 +35,4 @@ jobs:
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        python run_full_crawl.py --max 5
+        python scripts/run_full_crawl.py --max 5
