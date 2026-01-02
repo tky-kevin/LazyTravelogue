@@ -114,20 +114,6 @@ export const ItineraryCard = ({
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
 
                 onClick={!isEditing && !readOnly ? onClick : undefined}
-                onPointerDown={(e) => {
-                    if (readOnly || isEditing) return;
-                    // Mobile long-press logic
-                    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-                    if (isMobile) {
-                        const timer = setTimeout(() => {
-                            dragControls.start(e);
-                            if (navigator.vibrate) navigator.vibrate(50);
-                        }, 500);
-                        e.target.addEventListener('pointerup', () => clearTimeout(timer), { once: true });
-                        e.target.addEventListener('pointercancel', () => clearTimeout(timer), { once: true });
-                        e.target.addEventListener('pointermove', () => clearTimeout(timer), { once: true }); // Cancel if moved before long press
-                    }
-                }}
             >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border ${catConfig.bg} ${catConfig.text} ${catConfig.border}`}>
                     <CatIcon size={16} />
@@ -197,7 +183,7 @@ export const ItineraryCard = ({
                                                 <Trash2 size={14} />
                                             </button>
                                             <div
-                                                className="hidden md:block p-1.5 text-ink-muted cursor-grab touch-none"
+                                                className="p-1.5 text-ink-muted cursor-grab touch-none hover:text-primary transition-colors"
                                                 onPointerDown={(e) => dragControls.start(e)}
                                             >
                                                 <GripVertical size={18} />

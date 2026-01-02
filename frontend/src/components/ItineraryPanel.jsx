@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Reorder, motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Clock, Sparkles } from 'lucide-react';
+import { Clock, Sparkles, GripVertical } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import toast from 'react-hot-toast';
 import { format, addDays } from 'date-fns';
@@ -15,26 +15,6 @@ import { DraggableItineraryItem } from './itinerary/ItineraryCard';
 
 const DraggableDayItem = ({ dayKey, index, startDate, activeDay, onDayChange, onDayDragEnd }) => {
     const controls = useDragControls();
-    const [isLongPress, setIsLongPress] = useState(false);
-    const timeoutRef = useRef(null);
-
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-
-    const handlePointerDown = (e) => {
-        if (!isMobile) return; // Desktop handles drag via default dragListener
-
-        // Mobile: Start long press timer
-        timeoutRef.current = setTimeout(() => {
-            setIsLongPress(true);
-            controls.start(e);
-            if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
-        }, 500);
-    };
-
-    const handlePointerUp = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setIsLongPress(false);
-    };
 
     const date = addDays(startDate, index);
     const dateStr = format(date, 'M/d');
@@ -43,12 +23,12 @@ const DraggableDayItem = ({ dayKey, index, startDate, activeDay, onDayChange, on
     return (
         <Reorder.Item
             value={dayKey}
-            dragListener={!isMobile} // Desktop: true (default drag), Mobile: false (manual via long-press)
+            dragListener={false}
             dragControls={controls}
             layout
             onDragEnd={onDayDragEnd}
             whileDrag={{
-                scale: 1.15,
+                scale: 1.1,
                 zIndex: 50
             }}
             animate={{
@@ -56,20 +36,21 @@ const DraggableDayItem = ({ dayKey, index, startDate, activeDay, onDayChange, on
                 zIndex: activeDay === dayKey ? 10 : 1
             }}
             transition={{ type: "spring", stiffness: 500, damping: 30, mass: 1 }}
-            className="shrink-0 list-none rounded-full select-none"
+            className="shrink-0 list-none flex flex-col items-center gap-1 select-none"
             style={{ WebkitTapHighlightColor: 'transparent' }}
         >
+            {/* Drag Handle on top */}
+            <div
+                className="p-1 text-gray-400 cursor-grab touch-none hover:text-primary active:text-primary-dark transition-colors"
+                onPointerDown={(e) => controls.start(e)}
+            >
+                <GripVertical size={14} className="rotate-90" />
+            </div>
+
             <button
-                // Handle both selection and drag initiation
-                onPointerDown={(e) => {
-                    onDayChange(dayKey);
-                    if (isMobile) handlePointerDown(e);
-                }}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-                onPointerLeave={handlePointerUp}
+                onClick={() => onDayChange(dayKey)}
                 className={`
-                    w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none touch-pan-x
+                    w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-colors duration-200 outline-none select-none
                     ${activeDay === dayKey
                         ? 'bg-teal-50 border-2 border-primary text-primary shadow-md'
                         : 'bg-slate-100 border-2 border-transparent text-ink-muted hover:bg-slate-200'}
