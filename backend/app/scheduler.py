@@ -16,7 +16,6 @@ async def scheduled_crawl_job():
 
 def start_scheduler():
     if not scheduler.running:
-        # Example: Run every 24 hours
         scheduler.add_job(scheduled_crawl_job, 'interval', hours=24)
         scheduler.start()
         print("Scheduler started.")

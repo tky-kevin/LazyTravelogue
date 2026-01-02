@@ -54,24 +54,36 @@ export const optimizeRoute = async (items) => {
         })
     );
 
-    // 6. TSP Solver (Nearest Neighbor Heuristic)
-    // We assume the FIRST item (index 0) is the fixed START point (e.g. Hotel).
-    const indices = Array.from({ length: items.length }, (_, i) => i);
+    // 6. TSP Solver (Nearest Neighbor Heuristic) - Fixed Start AND End
+    // FIRST item (index 0) = fixed START, LAST item (index n-1) = fixed END
+    const n = items.length;
     const startNode = 0;
-    const toVisit = new Set(indices.filter(i => i !== startNode));
+    const endNode = n - 1;
+
+    // Middle nodes to visit (exclude start and end)
+    const toVisit = new Set(
+        Array.from({ length: n }, (_, i) => i).filter(i => i !== startNode && i !== endNode)
+    );
 
     let current = startNode;
     const path = [startNode];
 
+    // Nearest Neighbor with end-point awareness
     while (toVisit.size > 0) {
         let bestNext = -1;
         let minDuration = Infinity;
 
         for (const candidate of toVisit) {
-            const duration = costMatrix[current][candidate];
-            // If disconnected, duration is Infinity
-            if (duration < minDuration) {
-                minDuration = duration;
+            // Consider both: distance to candidate AND remaining distance to end
+            const durationToCandidate = costMatrix[current][candidate];
+
+            // Heuristic: penalize choices that move us far from the endpoint
+            // This helps avoid the "trapped far from end" problem
+            const remainingToEnd = costMatrix[candidate][endNode];
+            const heuristicCost = durationToCandidate + remainingToEnd * 0.1; // Small weight for lookahead
+
+            if (heuristicCost < minDuration) {
+                minDuration = heuristicCost;
                 bestNext = candidate;
             }
         }
@@ -81,8 +93,7 @@ export const optimizeRoute = async (items) => {
             toVisit.delete(bestNext);
             current = bestNext;
         } else {
-            // Disconnected graph or remaining nodes unreachable
-            // Just pick the next available one arbitrarily to ensure all are visited
+            // Fallback: pick any remaining node
             const next = toVisit.values().next().value;
             path.push(next);
             toVisit.delete(next);
@@ -90,6 +101,52 @@ export const optimizeRoute = async (items) => {
         }
     }
 
-    // 7. Map back to items
-    return path.map(index => items[index]);
+    // Append the fixed end node
+    path.push(endNode);
+
+    // 7. 2-opt Local Search Optimization (respecting fixed start and end)
+    // Only optimizes the middle portion of the route
+    const twoOptImprove = (route, matrix) => {
+        const len = route.length;
+        let improved = true;
+
+        while (improved) {
+            improved = false;
+
+            // Only consider middle nodes: indices 1 to len-2
+            // Keep index 0 (start) and index len-1 (end) fixed
+            for (let i = 1; i < len - 2; i++) {
+                for (let j = i + 1; j < len - 1; j++) {
+                    // Calculate current cost for edges: (i-1 → i) and (j → j+1)
+                    const a = route[i - 1];
+                    const b = route[i];
+                    const c = route[j];
+                    const d = route[j + 1];
+
+                    // Current cost: a→b + c→d
+                    // New cost after reversing [i...j]: a→c + b→d
+                    const currentCost = matrix[a][b] + matrix[c][d];
+                    const newCost = matrix[a][c] + matrix[b][d];
+
+                    // If reversing this segment reduces total distance, do it
+                    if (newCost < currentCost) {
+                        // Reverse the segment from i to j (inclusive)
+                        const reversed = route.slice(i, j + 1).reverse();
+                        for (let k = 0; k < reversed.length; k++) {
+                            route[i + k] = reversed[k];
+                        }
+                        improved = true;
+                    }
+                }
+            }
+        }
+
+        return route;
+    };
+
+    // Apply 2-opt optimization to the path
+    const optimizedPath = twoOptImprove([...path], costMatrix);
+
+    // 8. Map back to items
+    return optimizedPath.map(index => items[index]);
 };

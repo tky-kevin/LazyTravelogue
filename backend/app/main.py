@@ -12,18 +12,14 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Connect to DB
     await connect_to_mongo()
     start_scheduler()
     yield
-    # Shutdown: Close DB
     shutdown_scheduler()
     await close_mongo_connection()
 
-
 app = FastAPI(title="LazyTravelogue API", version="1.0.0", lifespan=lifespan)
 
-# CORS (Allow Frontend)
 origins = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,https://lazy-travelogue.vercel.app"
 ).split(",")

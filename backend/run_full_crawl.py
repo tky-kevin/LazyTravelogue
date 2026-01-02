@@ -15,9 +15,6 @@ async def run_crawler(url: str, clean: bool, max_pages: int):
         db = get_database()
         result = await db["knowledge_articles"].delete_many({})
         print(f"Deleted {result.deleted_count} documents.")
-
-        # Clean index if needed? Actually vector index is on collection, 
-        # deleting docs is enough.
     
     print(f"Starting crawl for: {url}")
     print(f"Max pages per sitemap: {max_pages if max_pages > 0 else 'Unlimited'}")

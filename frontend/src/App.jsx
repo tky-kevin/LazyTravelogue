@@ -37,27 +37,18 @@ function App() {
   } = useItineraryActions();
 
   const [focusedLocation, setFocusedLocation] = useState(null);
-  const [mobileView, setMobileView] = useState('list'); // 'list' | 'map'
-
-  // 1. Data Preparation
-  // We assume currentItinerary.days is always an Array due to backend standardization.
-  // We need to transform this Array into the format expected by the legacy components (Object { "Day 1": [...] })
-  // until those components are also refactored, OR we keep this transformation simple.
+  const [mobileView, setMobileView] = useState('list');
 
   const daysData = useMemo(() => {
     if (!currentItinerary?.days) return { "Day 1": [] };
 
-    // Transform List[Day] -> Object { "id": [activities] } for easy access by day ID/Date
     const map = {};
     if (Array.isArray(currentItinerary.days)) {
       currentItinerary.days.forEach(d => {
         map[d.id] = d.activities || [];
-        // We also map by "Day X" string if that's what activeDay uses, 
-        // essentially satisfying both ID and legacy "Day N" usage if they differ.
         if (d.date) map[d.date] = d.activities || [];
       });
     } else {
-      // Fallback (Should typically not be hit if we are strict, but good for safety during migration)
       return currentItinerary.days;
     }
     return map;
@@ -70,9 +61,7 @@ function App() {
     return found?.date || "Day 1";
   }, [currentItinerary, activeDay]);
 
-  // Calculate Timeline
   const calculatedItinerary = useMemo(() => {
-    // If activeDay is not found in daysData, default to empty array
     const currentActivities = daysData[activeDay] || [];
     const startTime = startTimes[activeDay] || '09:00';
 
@@ -82,15 +71,11 @@ function App() {
     };
   }, [daysData, startTimes, activeDay, activeDayLabel]);
 
-
-  // Auto-switch to map view when a location is selected (for mobile)
   useEffect(() => {
     if (selectedLocation) {
       setMobileView('map');
     }
   }, [selectedLocation]);
-
-  // 4. Main App Render Login if no user
   if (!user) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50">

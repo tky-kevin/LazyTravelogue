@@ -23,7 +23,7 @@ class Location(BaseModel):
     category: str
     lat: float
     lng: float
-    transportMode: Optional[str] = "DRIVING" # default
+    transportMode: Optional[str] = "DRIVING"
     stayDuration: int = 60 # minutes
     durationValue: int = 0
     distance: Optional[str] = None
@@ -42,21 +42,18 @@ class Itinerary(BaseModel):
     user_id: Optional[str] = None
     title: str = "My Trip"
     
-    # Changed from Dict to List for better ordering/handling
     days: List[Day] = []
     
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     
-    # Pocket List for unassigned locations
     pocket_list: List[Location] = []
     
-    start_times: Dict[str, str] = {} # Backward compatibility or separate handling
+    start_times: Dict[str, str] = {}
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    # Sharing
     is_public: bool = False
     share_token: Optional[str] = None
 

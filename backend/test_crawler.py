@@ -7,10 +7,8 @@ from app.services.crawler import crawl_and_index
 load_dotenv()
 
 async def test_crawler():
-    # Connect to Mongo
     await connect_to_mongo()
     
-    # Test URL - Sitemap
     test_url = "https://bunnyann.tw/post-sitemap.xml"
     
     print(f"Starting test crawl for: {test_url}")

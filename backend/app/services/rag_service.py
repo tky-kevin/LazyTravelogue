@@ -59,7 +59,6 @@ async def index_document(url: str, title: str, chunks: List[str]):
         print(f"Indexed {len(docs_to_insert)} chunks for {url}")
 
 async def search_knowledge_base(query: str, limit: int = 5) -> List[Dict]:
-    # 1. Embed Query
     if not GOOGLE_API_KEY:
         return []
 
@@ -73,7 +72,7 @@ async def search_knowledge_base(query: str, limit: int = 5) -> List[Dict]:
         print(f"Query embedding failed: {e}")
         return []
 
-    # 2. Vector Search via Aggregation Pipeline
+    # Vector Search via MongoDB Atlas Vector Search
     db = get_database()
     collection = db.knowledge_articles
     

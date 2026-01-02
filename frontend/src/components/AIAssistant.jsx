@@ -1,82 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Sparkles, X, Send, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
 import client from '../api/client';
 import { useItinerary } from '../context/ItineraryContext';
 
-// Custom Markdown renderer with styling for AI chat
-const MarkdownContent = ({ content }) => {
-    return (
-        <ReactMarkdown
-            components={{
-                // Headings
-                h1: ({ children }) => <h1 className="text-base font-bold mt-2 mb-1">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-sm font-bold mt-2 mb-1">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-sm font-semibold mt-1.5 mb-0.5">{children}</h3>,
-                // Paragraphs
-                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
-                // Lists
-                ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
-                li: ({ children }) => <li className="text-[0.85rem]">{children}</li>,
-                // Bold & Italic
-                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                em: ({ children }) => <em className="italic">{children}</em>,
-                // Code
-                code: ({ children }) => (
-                    <code className="bg-[#f1f5f9] px-1 py-0.5 rounded text-[0.8rem] text-primary">
-                        {children}
-                    </code>
-                ),
-                // Links
-                a: ({ href, children }) => (
-                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        {children}
-                    </a>
-                ),
-                // Blockquote
-                blockquote: ({ children }) => (
-                    <blockquote className="border-l-2 border-[#d0d9cd] pl-2 my-1 text-gray-600 italic">
-                        {children}
-                    </blockquote>
-                ),
-            }}
-        >
-            {content}
-        </ReactMarkdown>
-    );
-};
-
-const ItineraryPreview = ({ plan, onImport }) => {
-    return (
-        <div className="mt-2 p-3 bg-teal-50/50 rounded-xl border border-teal-100 shadow-sm animate-in fade-in slide-in-from-bottom-2">
-            <h4 className="font-bold text-gray-800 text-sm mb-1">{plan.title}</h4>
-            <p className="text-xs text-gray-500 mb-2">已為您規劃了 {plan.days.length} 天的行程，包含景點、美食等建議。</p>
-            <div className="max-h-32 overflow-y-auto mb-3 space-y-1 pr-1">
-                {plan.days.map((day, dIdx) => (
-                    <div key={dIdx} className="text-[0.7rem] bg-white/50 p-1.5 rounded flex flex-col gap-0.5">
-                        <span className="font-bold text-primary">{day.date}</span>
-                        <div className="flex flex-wrap gap-1">
-                            {day.activities.slice(0, 3).map((act, aIdx) => (
-                                <span key={aIdx} className="bg-white px-1.5 rounded border border-gray-100 text-gray-600">
-                                    {act.title}
-                                </span>
-                            ))}
-                            {day.activities.length > 3 && <span className="text-gray-400">...</span>}
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <button
-                onClick={onImport}
-                className="w-full py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
-            >
-                匯入此行程
-            </button>
-        </div>
-    );
-};
+// Sub-components
+import MarkdownContent from './ai/MarkdownContent';
+import ItineraryPreview from './ai/ItineraryPreview';
+import ChatMessage from './ai/ChatMessage';
 
 export default function AIAssistant({ inline = false }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -87,10 +18,8 @@ export default function AIAssistant({ inline = false }) {
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef(null);
 
-    // Get current itinerary context for smarter answers
     const { currentItinerary, replaceItinerary } = useItinerary();
 
-    // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -109,25 +38,20 @@ export default function AIAssistant({ inline = false }) {
         if (!inputMessage.trim()) return;
 
         const userMsg = inputMessage.trim();
-
-        // Add user message to local state first
         const newUserMessage = { role: 'user', content: userMsg };
         setMessages(prev => [...prev, newUserMessage]);
         setInputMessage('');
         setIsLoading(true);
 
         try {
-            // Prepare itinerary context
             const contextData = currentItinerary ? {
                 title: currentItinerary.title,
                 startDate: currentItinerary.start_date,
                 days: currentItinerary.days?.length || 0
             } : null;
 
-            // Build conversation history (exclude the initial greeting and current message)
-            // Only include actual user/assistant exchanges
             const historyForApi = messages
-                .slice(1) // Skip initial system greeting
+                .slice(1)
                 .filter(msg => msg.role === 'user' || msg.role === 'assistant')
                 .map(msg => ({
                     role: msg.role,
@@ -140,17 +64,12 @@ export default function AIAssistant({ inline = false }) {
                 context: contextData
             });
 
-            const reply = res.data.reply;
-            const sources = res.data.sources || [];
-            const plan = res.data.plan || null;
-            const suggestions = res.data.suggestions || [];
-
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: reply,
-                sources: sources,
-                plan: plan,
-                suggestions: suggestions
+                content: res.data.reply,
+                sources: res.data.sources || [],
+                plan: res.data.plan || null,
+                suggestions: res.data.suggestions || []
             }]);
         } catch (error) {
             console.error("AI Chat Error", error);
@@ -187,24 +106,18 @@ export default function AIAssistant({ inline = false }) {
         }
     };
 
-    // Handle dynamic suggestion button clicks
     const handleSuggestionClick = async (suggestion) => {
         if (suggestion.action === 'generate_plan' && suggestion.destination) {
-            // Trigger plan generation
             handleGeneratePlan(suggestion.destination);
         } else if (suggestion.action === 'ask' && suggestion.message) {
-            // Set the message and send
             setInputMessage(suggestion.message);
-            // Auto-send after a short delay
             setTimeout(() => {
                 const userMsg = suggestion.message;
                 setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
                 setInputMessage('');
-                // Trigger API call
                 sendMessageToApi(userMsg);
             }, 100);
         } else if (suggestion.action === 'modify_days' || suggestion.action === 'regenerate') {
-            // Handle modification requests
             const modifyMsg = suggestion.action === 'modify_days'
                 ? `請改成 ${suggestion.days} 天的行程`
                 : `請以「${suggestion.preferences}」風格重新規劃`;
@@ -217,7 +130,6 @@ export default function AIAssistant({ inline = false }) {
         }
     };
 
-    // Separated API call logic for reuse
     const sendMessageToApi = async (userMsg) => {
         setIsLoading(true);
         try {
@@ -320,70 +232,15 @@ export default function AIAssistant({ inline = false }) {
                     }}
                 >
                     {messages.map((msg, idx) => (
-                        <div
+                        <ChatMessage
                             key={idx}
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                marginBottom: '1rem'
-                            }}
-                        >
-                            <div style={{
-                                backgroundColor: msg.role === 'user' ? '#14b8a6' : '#fff',
-                                color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
-                                padding: '10px 14px',
-                                borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
-                                boxShadow: 'var(--shadow-sm)',
-                                maxWidth: '85%',
-                                fontSize: '0.9rem',
-                                lineHeight: '1.4'
-                            }}>
-                                {msg.role === 'assistant' ? (
-                                    <MarkdownContent content={msg.content} />
-                                ) : (
-                                    msg.content
-                                )}
-                                {msg.sources && msg.sources.length > 0 && (
-                                    <div className="mt-2 pt-2 border-t border-[#e2e8e0] text-[0.65rem] text-gray-500">
-                                        <p className="font-semibold mb-1">參考來源：</p>
-                                        <ul className="list-disc pl-3 space-y-0.5">
-                                            {msg.sources.map((src, i) => (
-                                                <li key={i}>
-                                                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                                        {src.title}
-                                                    </a>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                                {msg.plan && (
-                                    <ItineraryPreview
-                                        plan={msg.plan}
-                                        onImport={() => replaceItinerary(msg.plan)}
-                                    />
-                                )}
-                            </div>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
-                                {msg.role === 'user' ? '你' : 'AI'}
-                            </span>
-
-                            {/* Dynamic Suggestions - Show only on the latest AI message */}
-                            {msg.role === 'assistant' && idx === messages.length - 1 && msg.suggestions && msg.suggestions.length > 0 && !isLoading && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {msg.suggestions.map((suggestion, sIdx) => (
-                                        <button
-                                            key={sIdx}
-                                            onClick={() => handleSuggestionClick(suggestion)}
-                                            className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-medium"
-                                        >
-                                            {suggestion.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                            idx={idx}
+                            msg={msg}
+                            totalMessages={messages.length}
+                            isLoading={isLoading}
+                            onSuggestionClick={handleSuggestionClick}
+                            onImportPlan={replaceItinerary}
+                        />
                     ))}
 
                     {/* Initial Quick Actions - Show only on first load */}
@@ -552,70 +409,15 @@ export default function AIAssistant({ inline = false }) {
                             }}
                         >
                             {messages.map((msg, idx) => (
-                                <div
+                                <ChatMessage
                                     key={idx}
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                        marginBottom: '1rem'
-                                    }}
-                                >
-                                    <div style={{
-                                        backgroundColor: msg.role === 'user' ? '#14b8a6' : '#fff',
-                                        color: msg.role === 'user' ? '#fff' : 'var(--pk-text-main)',
-                                        padding: '10px 14px',
-                                        borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
-                                        boxShadow: 'var(--shadow-sm)',
-                                        maxWidth: '85%',
-                                        fontSize: '0.9rem',
-                                        lineHeight: '1.4'
-                                    }}>
-                                        {msg.role === 'assistant' ? (
-                                            <MarkdownContent content={msg.content} />
-                                        ) : (
-                                            msg.content
-                                        )}
-                                        {msg.sources && msg.sources.length > 0 && (
-                                            <div className="mt-2 pt-2 border-t border-[#e2e8e0] text-[0.65rem] text-gray-500">
-                                                <p className="font-semibold mb-1">參考來源：</p>
-                                                <ul className="list-disc pl-3 space-y-0.5">
-                                                    {msg.sources.map((src, i) => (
-                                                        <li key={i}>
-                                                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                                                {src.title}
-                                                            </a>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        {msg.plan && (
-                                            <ItineraryPreview
-                                                plan={msg.plan}
-                                                onImport={() => replaceItinerary(msg.plan)}
-                                            />
-                                        )}
-                                    </div>
-                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
-                                        {msg.role === 'user' ? '你' : 'AI'}
-                                    </span>
-
-                                    {/* Dynamic Suggestions - Show only on the latest AI message */}
-                                    {msg.role === 'assistant' && idx === messages.length - 1 && msg.suggestions && msg.suggestions.length > 0 && !isLoading && (
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            {msg.suggestions.map((suggestion, sIdx) => (
-                                                <button
-                                                    key={sIdx}
-                                                    onClick={() => handleSuggestionClick(suggestion)}
-                                                    className="px-3 py-1.5 bg-white border border-teal-100 text-primary rounded-full text-xs hover:bg-teal-50 transition-colors shadow-sm font-medium"
-                                                >
-                                                    {suggestion.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                    idx={idx}
+                                    msg={msg}
+                                    totalMessages={messages.length}
+                                    isLoading={isLoading}
+                                    onSuggestionClick={handleSuggestionClick}
+                                    onImportPlan={replaceItinerary}
+                                />
                             ))}
 
                             {/* Initial Quick Actions - Show only on first load */}

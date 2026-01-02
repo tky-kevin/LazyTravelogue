@@ -39,7 +39,7 @@ from fastapi import HTTPException, Header, Cookie, Request
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:
-        # Fallback to Header for testing or mobile clients if needed
+        # Fallback to Authorization header
         auth_header = request.headers.get("Authorization")
         if auth_header:
             try:

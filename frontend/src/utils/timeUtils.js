@@ -11,10 +11,8 @@ export const recalculateDayTimeline = (items, startTimeStr, targetDateStr = null
             baseDate = parsed;
         }
     }
-    // Ensure baseDate starts at 00:00:00 of THAT day
     baseDate.setHours(0, 0, 0, 0);
 
-    // Initial Start Time
     const [startHours, startMinutes] = startTimeStr.split(':').map(Number);
     let currentCursor = new Date(baseDate);
     currentCursor.setHours(startHours, startMinutes, 0, 0);
@@ -22,28 +20,19 @@ export const recalculateDayTimeline = (items, startTimeStr, targetDateStr = null
     const formatTime = (date) => {
         const timeStr = format(date, 'HH:mm');
         const dayDiff = differenceInCalendarDays(date, baseDate);
-        if (dayDiff > 0) {
-            return `${timeStr} (+${dayDiff})`;
-        }
-        return timeStr;
+        return dayDiff > 0 ? `${timeStr} (+${dayDiff})` : timeStr;
     };
 
     return items.map((item) => {
-        // 1. Activity Start
         const startDate = new Date(currentCursor);
-
-        // 2. Activity Duration
         const stayMinutes = isNaN(parseInt(item.stayDuration)) ? 60 : parseInt(item.stayDuration);
         const endDate = addMinutes(startDate, stayMinutes);
 
-        // 3. Travel Time to Next
+        // Round travel seconds to the nearest minute for consistent UI display
         const travelSeconds = item.durationValue || 0;
-        // Round travel time to nearest minute to avoid "10:14:59" truncating to "10:14"
-        // Using Math.round ensures 14m 50s becomes 15m, adhering to human expectation
         const travelMinutes = Math.round(travelSeconds / 60);
         const travelEndDate = addMinutes(endDate, travelMinutes);
 
-        // Update Cursor for next item
         currentCursor = travelEndDate;
 
         return {
@@ -52,7 +41,6 @@ export const recalculateDayTimeline = (items, startTimeStr, targetDateStr = null
             endDate: endDate,
             travelStartDate: endDate,
             travelEndDate: travelEndDate,
-            // Legacy/Display fields
             calculatedStartTime: formatTime(startDate),
             calculatedEndTime: formatTime(endDate),
             calculatedTravelEndTime: formatTime(travelEndDate)

@@ -1,20 +1,14 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, InfoWindow, useGoogleMap, Polyline } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, InfoWindow } from '@react-google-maps/api';
 import { Plus, Bookmark } from 'lucide-react';
 import { CANVAS_MAP_STYLE } from './mapStyles';
 import { useRouteCalculator } from '../hooks/useRouteCalculator';
 import { categorizePlace } from '../utils/placeUtils';
 
-// 1. Color Palette for Days
-const DAILY_COLORS = [
-    '#0ea5e9', // Day 1: Blue
-    '#f59e0b', // Day 2: Amber
-    '#10b981', // Day 3: Emerald
-    '#8b5cf6', // Day 4: Violet
-    '#f43f5e', // Day 5: Rose
-];
-
-const getColorForDay = (dayIndex) => DAILY_COLORS[dayIndex % DAILY_COLORS.length];
+// Sub-components & Helpers
+import { DAILY_COLORS, getColorForDay, getStepOptions, parseTransitDetails } from './map/constants';
+import { AdvancedMarker } from './map/AdvancedMarker';
+import { ManualPolyline } from './map/ManualPolyline';
 
 const LIBRARIES = ['places', 'marker'];
 
@@ -31,205 +25,6 @@ const defaultOptions = {
     streetViewControl: false,
 };
 
-// Styles for different transport modes
-const getStepOptions = (mode, color) => {
-    const baseOptions = {
-        strokeColor: color,
-        strokeOpacity: 0.8,
-        strokeWeight: 5,
-        clickable: false,
-        draggable: false,
-        editable: false,
-        geodesic: true,
-        zIndex: 1
-    };
-
-    if (mode === 'WALKING') {
-        return {
-            ...baseOptions,
-            strokeOpacity: 0,
-            icons: [{
-                icon: {
-                    path: window.google.maps.SymbolPath.CIRCLE,
-                    fillColor: color,
-                    fillOpacity: 1,
-                    scale: 3,
-                    strokeOpacity: 0
-                },
-                offset: '0',
-                repeat: '12px'
-            }]
-        };
-    } else if (mode === 'TRANSIT') {
-        return {
-            ...baseOptions,
-            strokeOpacity: 0,
-            icons: [{
-                icon: {
-                    path: 'M 0,-1 0,1',
-                    strokeOpacity: 1,
-                    scale: 3,
-                    strokeColor: color,
-                    strokeWeight: 4
-                },
-                offset: '0',
-                repeat: '12px'
-            }],
-            zIndex: 2
-        };
-    } else {
-        return {
-            ...baseOptions,
-            strokeOpacity: 1.0,
-            zIndex: 1
-        };
-    }
-};
-
-// Wrapper component for Standard Marker
-const AdvancedMarker = ({ position, color, label, onClick, children }) => {
-    const map = useGoogleMap();
-    const markerRef = useRef(null);
-    const clickRef = useRef(onClick);
-    // State to trigger re-render of children when marker is ready
-    const [markerReady, setMarkerReady] = useState(false);
-
-    // Keep click handler fresh without re-binding listener
-    useEffect(() => {
-        clickRef.current = onClick;
-    }, [onClick]);
-
-    // Create Marker (Once)
-    useEffect(() => {
-        if (!map) return;
-
-        const marker = new window.google.maps.Marker({
-            map,
-            position,
-            clickable: true,
-            label: label ? {
-                text: String(label),
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: '900'
-            } : null,
-            icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                fillColor: color || '#ef4444',
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2,
-                scale: label ? 10 : 7
-            }
-        });
-
-        marker.addListener("click", (e) => {
-            if (clickRef.current) clickRef.current(e);
-        });
-
-        markerRef.current = marker;
-        setMarkerReady(true);
-
-        return () => {
-            marker.setMap(null);
-        };
-    }, [map]); // Depend only on map to create once
-
-    // Update Position, Color & Label
-    useEffect(() => {
-        if (markerRef.current) {
-            markerRef.current.setPosition(position);
-            markerRef.current.setLabel(label ? {
-                text: String(label),
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: '900'
-            } : null);
-            markerRef.current.setIcon({
-                path: window.google.maps.SymbolPath.CIRCLE,
-                fillColor: color || '#ef4444',
-                fillOpacity: 1,
-                strokeColor: 'white',
-                strokeWeight: 2,
-                scale: label ? 10 : 7
-            });
-        }
-    }, [position.lat, position.lng, color, label]);
-
-    if (!markerReady) return null;
-    if (!children) return null;
-    return React.cloneElement(children, { anchor: markerRef.current });
-};
-
-
-// Helper to parse transit details from a Google Maps DirectionsLeg
-const parseTransitDetails = (leg) => {
-    if (!leg || !leg.steps) return null;
-
-    return leg.steps.map(step => {
-        if (step.travel_mode === 'TRANSIT' && step.transit) {
-            return {
-                type: 'TRANSIT',
-                line: step.transit.line.short_name || step.transit.line.name,
-                vehicle: step.transit.line.vehicle.name,
-                departureStop: step.transit.departure_stop.name,
-                arrivalStop: step.transit.arrival_stop.name,
-                departureTime: step.transit.departure_time?.text || '未提供',
-                arrivalTime: step.transit.arrival_time?.text || '未提供',
-                numStops: step.transit.num_stops,
-                color: step.transit.line.color,
-                textColor: step.transit.line.text_color
-            };
-        } else if (step.travel_mode === 'WALKING') {
-            return {
-                type: 'WALKING',
-                duration: step.duration.text,
-                distance: step.distance.text,
-                instruction: step.instructions
-            };
-        }
-        return null;
-    }).filter(Boolean);
-};
-
-
-
-// Custom Polyline wrapper to ensure clean unmounting
-const ManualPolyline = ({ path, options }) => {
-    const map = useGoogleMap();
-    const lineRef = useRef(null);
-
-    // Create & Cleanup
-    useEffect(() => {
-        if (!map) return;
-        const line = new window.google.maps.Polyline({
-            map,
-            path,
-            ...options
-        });
-        lineRef.current = line;
-
-        // Force cleanup
-        return () => {
-            if (lineRef.current) {
-                lineRef.current.setMap(null);
-                lineRef.current = null;
-            }
-        };
-    }, [map]); // Init once. Changes handled by next effect or key change remount.
-
-    // Update options if instance preserves
-    useEffect(() => {
-        if (!lineRef.current) return;
-        lineRef.current.setOptions(options);
-        // path update is tricky if length changes, safer to rely on remount via key
-        // but for safety:
-        lineRef.current.setPath(path);
-    }, [path, options]);
-
-    return null;
-};
-
 export default function MapPanel({ selectedLocation, focusedLocation, itineraryData, days = [], activeDay, activeDayLabel, onLocationSelect, onAddLocation, onAddToPocket, onDirectionsFetched, onDirectionsError }) {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
@@ -241,11 +36,10 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
     const [map, setMap] = useState(null);
     const mapRef = useRef(null);
     const [infoWindowOpen, setInfoWindowOpen] = useState(null);
-    const [renderedRoutes, setRenderedRoutes] = useState({}); // key -> routeResult
+    const [renderedRoutes, setRenderedRoutes] = useState({});
     const [selectedDays, setSelectedDays] = useState(new Set());
     const { getRoute } = useRouteCalculator();
 
-    // Sync selectedDays when activeDay changes or when days list changes (to handle initialization)
     useEffect(() => {
         if (activeDay) {
             setSelectedDays(prev => {
@@ -256,7 +50,6 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         }
     }, [activeDay]);
 
-    // Initialize with activeDay if selectedDays is empty
     useEffect(() => {
         if (selectedDays.size === 0 && activeDay) {
             setSelectedDays(new Set([activeDay]));
@@ -275,46 +68,35 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         });
     };
 
-    const selectAllDays = () => {
-        setSelectedDays(new Set(days.map(d => d.id)));
-    };
+    const selectAllDays = () => setSelectedDays(new Set(days.map(d => d.id)));
+    const deselectAllDays = () => setSelectedDays(new Set());
 
-    const deselectAllDays = () => {
-        setSelectedDays(new Set());
-    };
-
-    // Map View State
     const [mapCenter, setMapCenter] = useState(center);
     const [mapZoom, setMapZoom] = useState(13);
 
-    // Map Layers State
     const [layers, setLayers] = useState({
-        poi: false,      // Attractions / General POI
-        business: false, // Shops / Restaurants
-        transit: false,  // Transit Stations
-        park: false      // Parks
+        poi: false,
+        business: false,
+        transit: false,
+        park: false
     });
 
     const toggleLayer = (layer) => {
         setLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
     };
 
-    // Construct dynamic styles based on layer visibility
     const dynamicStyles = useMemo(() => {
         return CANVAS_MAP_STYLE.map(style => {
-            // General POI Labels/Icons
-            if (style.featureType === 'poi' || style.featureType === 'all' && style.elementType === 'labels.icon') {
+            if (style.featureType === 'poi' || (style.featureType === 'all' && style.elementType === 'labels.icon')) {
                 if (style.featureType === 'poi' && !layers.poi) return { ...style, stylers: [{ visibility: 'off' }] };
                 if (style.elementType === 'labels.icon' && !layers.poi && !layers.business) return { ...style, stylers: [{ visibility: 'off' }] };
             }
-            // Specific overrides
             if (style.featureType === 'poi.business' && !layers.business) return { ...style, stylers: [{ visibility: 'off' }] };
             if (style.featureType?.startsWith('transit') && !layers.transit) return { ...style, stylers: [{ visibility: 'off' }] };
             if (style.featureType === 'poi.park' && !layers.park) return { ...style, stylers: [{ visibility: 'off' }] };
 
             return style;
         }).concat([
-            // Ensure business/transit visibility is explicitly handled if not in base style
             { featureType: 'poi.business', elementType: 'labels', stylers: [{ visibility: layers.business ? 'on' : 'off' }] },
             { featureType: 'poi.business', elementType: 'labels.icon', stylers: [{ visibility: layers.business ? 'on' : 'off' }] },
             { featureType: 'poi.attraction', elementType: 'labels', stylers: [{ visibility: layers.poi ? 'on' : 'off' }] },
@@ -329,11 +111,9 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
         styles: dynamicStyles
     }), [dynamicStyles]);
 
-    // Transform props to renderable list
     const mapData = useMemo(() => {
         if (!days || days.length === 0) return [];
         return days.map((day, index) => {
-            // Use itineraryData activities if they belong to this day (itineraryData holds calculated days)
             const activities = itineraryData[day.id] || itineraryData[day.date] || day.activities || [];
             const isVisible = selectedDays.has(day.id);
             return {
@@ -362,16 +142,14 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
 
     const onMapClick = useCallback((e) => {
         if (e.placeId && onLocationSelect) {
-            e.stop?.(); // Prevent standard Google POI info window
-
+            e.stop?.(); // Prevent default Google POI info window
             if (!mapRef.current) return;
             const service = new window.google.maps.places.PlacesService(mapRef.current);
-
             service.getDetails({
                 placeId: e.placeId,
                 fields: ['name', 'geometry', 'formatted_address', 'place_id', 'rating', 'user_ratings_total', 'types']
             }, (place, status) => {
-                if (status === window.google.maps.places.PlacesServiceStatus.OK && place.geometry && place.geometry.location) {
+                if (status === window.google.maps.places.PlacesServiceStatus.OK && place.geometry?.location) {
                     onLocationSelect({
                         lat: place.geometry.location.lat(),
                         lng: place.geometry.location.lng(),
@@ -384,13 +162,9 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                     });
                 }
             });
-        } else {
-            // Option: Clear selection if clicking empty map
-            // onLocationSelect?.(null);
         }
     }, [onLocationSelect]);
 
-    // Effect: Fetch Routes Imperatively
     useEffect(() => {
         if (!isLoaded) return;
 
@@ -400,104 +174,62 @@ export default function MapPanel({ selectedLocation, focusedLocation, itineraryD
                 const nextLoc = dayData.locations[i + 1];
                 const transportMode = loc.transportMode || 'DRIVING';
                 const cacheKey = `${loc.lat},${loc.lng}-${nextLoc.lat},${nextLoc.lng}-${transportMode}`;
-
-                // Departure Time for transit (if available from previous activity's calculated end time)
                 const departureTime = (dayData.day === activeDay && loc.endDate) ? new Date(loc.endDate) : null;
 
-                // Fetch Route
                 getRoute(loc, nextLoc, transportMode, departureTime)
                     .then(result => {
-
-
-                        // Smart selection for TRANSIT mode:
-                        // Prioritize the FASTEST route that actually has TRANSIT steps.
                         let selectedRouteIndex = 0;
-                        if (transportMode === 'TRANSIT' && result.routes && result.routes.length > 0) {
-                            // detailedRoutes: Array of { index, route, durationValue, hasTransit }
+                        if (transportMode === 'TRANSIT' && result.routes?.length > 0) {
                             const candidates = result.routes.map((r, idx) => ({
                                 index: idx,
-                                route: r,
                                 durationValue: r.legs[0].duration.value,
                                 hasTransit: r.legs[0].steps.some(s => s.travel_mode === 'TRANSIT')
                             }));
 
-                            // Filter for routes with transit steps
                             const transitCandidates = candidates.filter(c => c.hasTransit);
-
                             if (transitCandidates.length > 0) {
-                                // Sort by duration (ascending) -> pick fastest
                                 transitCandidates.sort((a, b) => a.durationValue - b.durationValue);
                                 selectedRouteIndex = transitCandidates[0].index;
-                            } else {
-                                // Fallback: if no transit steps found in any route (rare), stick to default (Google's best guess, likely walking)
-                                selectedRouteIndex = 0;
                             }
                         }
 
-                        // Update local render state
                         setRenderedRoutes(prev => {
                             if (prev[cacheKey]) return prev;
                             return { ...prev, [cacheKey]: { ...result, selectedRouteIndex } };
                         });
 
-                        // Notify Parent (App.jsx)
                         if (onDirectionsFetched) {
-                            const selectedRoute = result.routes[selectedRouteIndex];
-                            const leg = selectedRoute.legs[0];
-
-                            // Use the REQUESTED departure time as a fallback base if leg time is missing
-                            // (e.g. Walking routes often lack absolute timestamps)
-                            const baseTime = departureTime ? new Date(departureTime) : new Date();
-
+                            const leg = result.routes[selectedRouteIndex].legs[0];
                             const transitDetails = transportMode === 'TRANSIT' ? parseTransitDetails(leg) : null;
 
                             onDirectionsFetched(dayData.day, loc.id, {
                                 duration: leg.duration || {},
                                 distance: leg.distance || {},
                                 transitDetails,
-                                transportMode // Ensure mode is passed back
+                                transportMode
                             });
                         }
                     })
                     .catch(err => {
-                        console.error(`Error fetching route for ${loc.name} -> ${nextLoc.name}:`, err);
-                        // Only notify error, do not switch mode automatically
-                        if (onDirectionsError) {
-                            onDirectionsError(dayData.day, loc.id, err);
-                        }
+                        console.error(`Route error: ${loc.name} -> ${nextLoc.name}:`, err);
+                        if (onDirectionsError) onDirectionsError(dayData.day, loc.id, err);
                     });
             });
         });
-
     }, [isLoaded, mapData, getRoute, onDirectionsFetched, onDirectionsError]);
 
-
-    // Simplified View Logic: We only move programmatically via refs to ensure smoothness
     useEffect(() => {
         if (isLoaded && map) {
             if (selectedLocation) {
-                const target = {
-                    lat: parseFloat(selectedLocation.lat),
-                    lng: parseFloat(selectedLocation.lng)
-                };
+                const target = { lat: parseFloat(selectedLocation.lat), lng: parseFloat(selectedLocation.lng) };
                 setInfoWindowOpen('search-result');
                 map.panTo(target);
-
-                // Only zoom in if we are too far out
-                if (map.getZoom() < 15) {
-                    map.setZoom(15);
-                }
+                if (map.getZoom() < 15) map.setZoom(15);
             } else if (focusedLocation) {
-                const target = {
-                    lat: parseFloat(focusedLocation.lat),
-                    lng: parseFloat(focusedLocation.lng)
-                };
+                const target = { lat: parseFloat(focusedLocation.lat), lng: parseFloat(focusedLocation.lng) };
                 setInfoWindowOpen(`existing-${focusedLocation.id}`);
                 map.panTo(target);
-
-                if (map.getZoom() < 16) {
-                    map.setZoom(16);
-                }
+                if (map.getZoom() < 16) map.setZoom(16);
             }
         }
     }, [isLoaded, map, selectedLocation?.lat, selectedLocation?.lng, selectedLocation?._ts, focusedLocation?.id, focusedLocation?._ts]);

@@ -18,9 +18,6 @@ if LLM_API_KEY:
     genai.configure(api_key=LLM_API_KEY)
 
 
-# ============================================================
-# Enhanced System Prompt for Travel Assistant
-# ============================================================
 SYSTEM_PROMPT = """
 你是 LazyTravelogue 的「旅遊小精靈」，一個專業、友善且富有創意的旅遊規劃 AI 助理。
 
@@ -55,19 +52,19 @@ SYSTEM_PROMPT = """
 ## ⚠️ 注意事項
 - 避免推薦可能已關閉或季節性限定的景點，除非特別說明
 - 對於敏感話題（政治、宗教）保持中立
-- 不提供違法或危險活動的建議
+- 不提供違法 or 危險活動的建議
 """
 
 
 class ChatMessage(BaseModel):
-    role: str  # "user" or "assistant"
+    role: str
     content: str
 
 
 class ChatRequest(BaseModel):
     message: str
-    history: List[ChatMessage] = []  # Conversation history for multi-turn
-    context: Optional[Dict[str, Any]] = None  # Current itinerary state
+    history: List[ChatMessage] = []
+    context: Optional[Dict[str, Any]] = None
 
 
 @router.post("/assistant")
@@ -80,10 +77,8 @@ async def chat_with_ai(
         )
 
     try:
-        # 1. Search Knowledge Base (RAG)
         kb_results = await search_knowledge_base(request.message)
         
-        # Format RAG context
         kb_text = ""
         sources = []
         if kb_results:
@@ -91,14 +86,11 @@ async def chat_with_ai(
             for doc in kb_results:
                 kb_text += f"**{doc['title']}**\n{doc['content']}\n\n"
                 
-                # Deduplicate sources for UI
                 if not any(s['url'] == doc['url'] for s in sources):
                     sources.append({"title": doc['title'], "url": doc['url']})
 
-        # 2. Build Enhanced System Instruction
         full_system_prompt = SYSTEM_PROMPT
         
-        # Add current itinerary context if available
         if request.context:
             itinerary_info = f"""
 
@@ -109,11 +101,9 @@ async def chat_with_ai(
 """
             full_system_prompt += itinerary_info
         
-        # Add RAG knowledge
         if kb_text:
             full_system_prompt += kb_text
 
-        # 3. Create model with system instruction
         model = genai.GenerativeModel(
             model_name="gemini-2.5-flash",
             system_instruction=full_system_prompt,
@@ -125,7 +115,6 @@ async def chat_with_ai(
             }
         )
 
-        # 4. Format conversation history for multi-turn chat
         gemini_history = []
         for msg in request.history:
             gemini_history.append({
@@ -133,10 +122,8 @@ async def chat_with_ai(
                 "parts": [msg.content]
             })
 
-        # 5. Intent Detection - Check if user wants to generate a trip plan
         intent_result = await detect_plan_intent(request.message, request.history)
         
-        # 6. If planning intent detected, generate plan automatically
         if intent_result["is_planning"]:
             destination = intent_result.get("destination", "")
             days = intent_result.get("days", 3)
@@ -145,7 +132,6 @@ async def chat_with_ai(
             try:
                 plan_data = await generate_trip_plan(destination, days, preferences)
                 
-                # Generate a friendly response message
                 chat = model.start_chat(history=gemini_history)
                 response = chat.send_message(
                     f"使用者想規劃 {destination} 的 {days} 天行程。請用友善的方式告訴他你已經幫他規劃好了，簡單介紹一下行程亮點，並邀請他查看或匯入行程。不要列出完整行程細節。"
@@ -163,14 +149,11 @@ async def chat_with_ai(
                 }
             except Exception as plan_error:
                 print(f"Auto-plan generation failed: {plan_error}")
-                # Fall through to normal chat if plan generation fails
 
-        # 7. Normal chat flow
         chat = model.start_chat(history=gemini_history)
         response = chat.send_message(request.message)
 
         if response.text:
-            # Generate contextual suggestions based on the conversation
             suggestions = await generate_suggestions(request.message, response.text, request.context)
             
             return {
@@ -186,18 +169,11 @@ async def chat_with_ai(
         return {"reply": f"🤖 AI 服務錯誤：{str(e)}"}
 
 
-# ============================================================
-# Intent Detection Helper
-# ============================================================
 async def detect_plan_intent(message: str, history: List[ChatMessage]) -> Dict[str, Any]:
-    """
-    Detect if the user wants to generate a trip plan.
-    Returns: {"is_planning": bool, "destination": str, "days": int, "preferences": str}
-    """
-    # Build context from history for better detection
+    """Detect if the user wants to generate a trip plan."""
     recent_context = ""
     if history:
-        recent_msgs = history[-4:]  # Last 4 messages
+        recent_msgs = history[-4:]
         for msg in recent_msgs:
             recent_context += f"{msg.role}: {msg.content}\n"
     
@@ -228,7 +204,6 @@ async def detect_plan_intent(message: str, history: List[ChatMessage]) -> Dict[s
         response = model.generate_content(detection_prompt)
         
         text = response.text
-        # Extract JSON
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
         elif "```" in text:
@@ -246,20 +221,13 @@ async def detect_plan_intent(message: str, history: List[ChatMessage]) -> Dict[s
         return {"is_planning": False, "destination": "", "days": 3, "preferences": ""}
 
 
-# ============================================================
-# Dynamic Suggestions Generator
-# ============================================================
 async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[Dict] = None) -> List[Dict]:
-    """
-    Generate contextual action suggestions based on conversation.
-    """
+    """Generate contextual action suggestions based on conversation."""
     suggestions = []
     
-    # Keywords for different suggestion types
     user_lower = user_msg.lower()
     reply_lower = ai_reply.lower()
     
-    # Destination-related suggestions - Focus on Taiwan regions (matches RAG knowledge base)
     taiwan_destinations = ["台北", "新北", "桃園", "台中", "台南", "高雄", "基隆", "新竹", "嘉義", "宜蘭", "花蓮", "台東", "澎湖", "金門", "墾丁", "日月潭", "阿里山", "九份", "淡水"]
     mentioned_dest = None
     for dest in taiwan_destinations:
@@ -274,7 +242,6 @@ async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[D
             "destination": mentioned_dest
         })
     
-    # Food-related
     if any(kw in user_lower for kw in ["吃", "美食", "餐廳", "小吃", "推薦吃"]):
         suggestions.append({
             "label": "🍜 推薦更多美食",
@@ -282,7 +249,6 @@ async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[D
             "message": "還有其他推薦的美食嗎？"
         })
     
-    # Transport-related
     if any(kw in user_lower for kw in ["交通", "怎麼去", "搭什麼", "機票", "轉車"]):
         suggestions.append({
             "label": "🚃 查詢交通方式",
@@ -290,7 +256,6 @@ async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[D
             "message": "請問詳細的交通方式是什麼？"
         })
     
-    # If user has an existing itinerary
     if context and context.get("days", 0) > 0:
         suggestions.append({
             "label": "📝 優化我的行程",
@@ -298,7 +263,6 @@ async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[D
             "message": "請幫我優化目前的行程安排"
         })
     
-    # General helpful suggestions if none were added
     if not suggestions:
         suggestions = [
             {"label": "🗺️ 推薦台灣景點", "action": "ask", "message": "請推薦台灣熱門旅遊景點"},
@@ -306,16 +270,11 @@ async def generate_suggestions(user_msg: str, ai_reply: str, context: Optional[D
             {"label": "💡 旅遊小提醒", "action": "ask", "message": "在台灣旅遊有什麼注意事項嗎？"}
         ]
     
-    return suggestions[:3]  # Return max 3 suggestions
+    return suggestions[:3]
 
 
-# ============================================================
-# Trip Plan Generator (Shared Logic)
-# ============================================================
 async def generate_trip_plan(destination: str, days: int = 3, preferences: str = "") -> Dict:
-    """
-    Generate a complete trip plan. Used by both auto-detection and explicit endpoint.
-    """
+    """Generate a complete trip plan."""
     model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
@@ -354,12 +313,12 @@ async def generate_trip_plan(destination: str, days: int = 3, preferences: str =
 Schema 限制：
 1. 每個 day 必須有 "id" (如 "day-1", "day-2")
 2. 每個 activity 的 "id" 必須是唯一的字串
-3. **category 必須使用以下英文值之一**:
-   - "food" (美食相關：餐廳、小吃、咖啡廳、夜市等)
-   - "scenic" (景點觀光：博物館、寺廟、公園、古蹟、自然景觀等)
-   - "hotel" (住宿相關：飯店、民宿等)
-   - "shopping" (購物相關：商場、市集、商店街等)
-   - "other" (其他：交通站點或無法分類的項目)
+3. category 必須使用以下英文值之一:
+   - "food"
+   - "scenic"
+   - "hotel"
+   - "shopping"
+   - "other"
 4. 經緯度 (lat, lng) 請提供大概位置即可，系統會自動透過 Google Maps 修正為精確座標
 5. transportMode 必須是: "DRIVING", "WALKING", "TRANSIT"
 6. 語言：繁體中文（但 category 使用英文）
@@ -368,7 +327,6 @@ Schema 限制：
     response = model.generate_content(prompt)
     text = response.text
     
-    # Extract JSON from markdown if exists
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()
     elif "```" in text:
@@ -376,23 +334,19 @@ Schema 限制：
     
     plan_data = json.loads(text)
     
-    # Apply geocoding to convert place names to accurate coordinates
-    # Falls back to AI-generated coordinates if Google Maps API fails
     try:
         plan_data = await GeocodingService.geocode_itinerary_activities(plan_data)
     except Exception as e:
-        print(f"Geocoding error (using AI coordinates as fallback): {e}")
+        print(f"Geocoding error: {e}")
     
     return plan_data
 
 
-# ============================================================
-# Explicit Generate Plan Endpoint (for backward compatibility)
-# ============================================================
 class GeneratePlanRequest(BaseModel):
     destination: str
     days: int = 3
     preferences: Optional[str] = None
+
 
 @router.post("/assistant/generate-plan")
 async def generate_plan(
@@ -412,4 +366,3 @@ async def generate_plan(
     except Exception as e:
         print(f"Plan Gen Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-

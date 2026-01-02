@@ -18,8 +18,6 @@ export function ItineraryProvider({ children }) {
     const [loading, setLoading] = useState(false);
     const [showPocket, setShowPocket] = useState(false);
 
-    // 1. Definition Phase (Functions)
-
     const createItinerary = useCallback(async (itineraryData = {}) => {
         try {
             const today = new Date().toISOString();
@@ -43,7 +41,7 @@ export function ItineraryProvider({ children }) {
             console.error("Create Failed", error);
             toast.error('建立行程失敗');
         }
-    }, [itineraries.length]); // Dependencies if needed
+    }, [itineraries.length]);
 
     const fetchItineraries = useCallback(async () => {
         try {
@@ -186,8 +184,6 @@ export function ItineraryProvider({ children }) {
         }
     };
 
-    // 2. Lifecycle Phase (Hooks)
-
     const initialFetchDone = useRef(false);
     useEffect(() => {
         const userData = localStorage.getItem('user_data');
@@ -201,7 +197,6 @@ export function ItineraryProvider({ children }) {
     useEffect(() => {
         if (currentItinerary) {
             if (currentItinerary.days && currentItinerary.days.length > 0) {
-                // Only sync activeDay if it's currently null or not in the new itinerary
                 const dayExists = currentItinerary.days.some(d => d.id === activeDay);
                 if (!activeDay || !dayExists) {
                     setActiveDay(currentItinerary.days[0].id);

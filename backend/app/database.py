@@ -29,4 +29,4 @@ async def close_mongo_connection():
 
 
 def get_database():
-    return db.client.get_database("lazytravelogue")  # Default DB name
+    return db.client.get_database("lazytravelogue")

@@ -12,11 +12,11 @@ async def create_index():
         return
 
     client = AsyncIOMotorClient(uri)
-    db = client.get_database("lazytravelogue") # Ensure this matches your DB name
+    db = client.get_database("lazytravelogue")
     collection = db.knowledge_articles
     
-    # Definition for Atlas Vector Search
-    # Using dimensions=768 for Gemini embeddings (text-embedding-004)
+    # Atlas Vector Search Definition
+    # dimensions=768 corresponds to Gemini text-embedding-004
     model = {
         "definition": {
             "fields": [
@@ -34,12 +34,10 @@ async def create_index():
 
     print("Creating Atlas Vector Search Index 'vector_index'...")
     try:
-        # Note: create_search_index is available in pymongo>=4.7 / motor equivalent
-        # If this fails, the user might need to use the Atlas UI.
         await collection.create_search_index(model=model)
         print("Index creation initiated. It may take some time to build on Atlas.")
     except Exception as e:
-        print(f"Error creating index (You might need to create it manually in Atlas UI): {e}")
+        print(f"Error creating index (Check Atlas UI for manual creation if failed): {e}")
     finally:
         client.close()
     

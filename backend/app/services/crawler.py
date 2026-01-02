@@ -5,15 +5,14 @@ from datetime import datetime
 from app.services.rag_service import index_document
 from app.database import get_database
 
-# 爬蟲設定
-CRAWL_DELAY = 2  # 每次爬取之間的延遲秒數，避免對目標網站造成負擔
+CRAWL_DELAY = 2  # Delay between requests (seconds)
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 }
 
 async def is_url_indexed(url: str) -> bool:
-    """檢查 URL 是否已經被索引過"""
+    """Check if URL exists in database"""
     db = get_database()
     existing = await db.knowledge_articles.find_one({"url": url})
     return existing is not None
@@ -30,25 +29,21 @@ async def crawl_and_index(url: str, max_pages: int = 10):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Metadata
         title = soup.title.string.strip() if soup.title else url
         
-        # Cleanup distractions
+        # Cleanup page structure
         for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'iframe', 'ads']):
             tag.decompose()
 
-        # Custom logic for bunnyann.tw: Try to find entry-content
+        # Custom logic for bunnyann.tw content selection
         content_area = soup.find('div', class_='entry-content') or soup.find('div', class_='post-content')
         if not content_area:
              content_area = soup.find('article')
         
-        # Fallback to body if no specific content area found
         target = content_area if content_area else soup
 
-        # Get structured text
         text = target.get_text(separator='\n', strip=True)
         
-        # Simple Chunking
         chunk_size = 1500
         overlap = 200
         chunks = []
@@ -75,7 +70,7 @@ async def crawl_and_index(url: str, max_pages: int = 10):
         return False, str(e)
 
 async def collect_urls_from_sitemap(sitemap_url: str) -> list:
-    """從 sitemap 收集所有文章 URL（包含 sub-sitemaps）"""
+    """Collect all article URLs from sitemap (including sub-sitemaps)"""
     print(f"Reading sitemap: {sitemap_url}")
     all_urls = []
     
@@ -90,7 +85,7 @@ async def collect_urls_from_sitemap(sitemap_url: str) -> list:
             print(f"Found {len(sitemaps)} sub-sitemaps")
             for sm in sitemaps:
                 loc = sm.find('loc').text
-                # 只處理 post-sitemap（文章頁面）
+                # Process only post-sitemaps
                 if "post-sitemap" in loc:
                     print(f"  → Processing sub-sitemap: {loc}")
                     sub_urls = await collect_urls_from_sitemap(loc)
@@ -109,11 +104,11 @@ async def collect_urls_from_sitemap(sitemap_url: str) -> list:
                 lastmod_date = None
                 if lastmod and lastmod.text:
                     try:
-                        # 嘗試解析 ISO 格式日期
+                        # Try ISO format
                         lastmod_date = datetime.fromisoformat(lastmod.text.replace('Z', '+00:00'))
                     except:
                         try:
-                            # 嘗試其他常見格式
+                            # Try other common formats
                             lastmod_date = datetime.strptime(lastmod.text[:10], '%Y-%m-%d')
                         except:
                             lastmod_date = datetime.min
@@ -133,26 +128,26 @@ async def collect_urls_from_sitemap(sitemap_url: str) -> list:
 
 
 async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
-    """爬取 sitemap 中的文章，優先處理最新的"""
+    """Crawl articles from sitemap, prioritizing newest"""
     print(f"="*60)
     print(f"Starting crawler (Max new articles: {max_pages if max_pages > 0 else 'Unlimited'})")
     print(f"="*60)
     
     try:
-        # Step 1: 收集所有 sub-sitemap 的 URL
+        # Phase 1: Collect URLs from all sitemaps
         print("\n[Phase 1] Collecting URLs from all sitemaps...")
         all_url_entries = await collect_urls_from_sitemap(sitemap_url)
         
         if not all_url_entries:
             return False, "No URLs found in sitemap"
         
-        # Step 2: 全局按日期排序（最新的優先）
+        # Phase 2: Sort by date (newest first)
         all_url_entries.sort(key=lambda x: x['lastmod'], reverse=True)
         print(f"\n[Stats] Total URLs collected: {len(all_url_entries)}")
         print(f"   Newest: {all_url_entries[0]['lastmod']} - {all_url_entries[0]['url'][:60]}...")
         print(f"   Oldest: {all_url_entries[-1]['lastmod']} - {all_url_entries[-1]['url'][:60]}...")
         
-        # Step 3: 爬取直到達到目標數量或全部完成
+        # Phase 3: Crawl new articles
         print(f"\n[Phase 2] Crawling new articles...")
         indexed_count = 0
         skipped_count = 0
@@ -160,7 +155,7 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
         for entry in all_url_entries:
             url = entry['url']
             
-            # 檢查是否已經索引過
+            # Check if already indexed
             if await is_url_indexed(url):
                 skipped_count += 1
                 continue
@@ -175,7 +170,7 @@ async def crawl_sitemap(sitemap_url: str, max_pages: int = 10):
             else:
                 print(f"  [FAIL] {msg}")
             
-            # 速度限制：每次爬取後暫停一段時間
+            # Rate limiting
             print(f"  [WAIT] {CRAWL_DELAY}s before next request...")
             await asyncio.sleep(CRAWL_DELAY)
             

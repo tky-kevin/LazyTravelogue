@@ -11,18 +11,7 @@ class GeocodingService:
     
     @staticmethod
     async def geocode_place(place_name: str, fallback_lat: Optional[float] = None, fallback_lng: Optional[float] = None) -> Tuple[float, float]:
-        """
-        Convert a place name to coordinates using Google Maps Geocoding API.
-        
-        Args:
-            place_name: The name of the place to geocode
-            fallback_lat: AI-generated latitude to use if API fails
-            fallback_lng: AI-generated longitude to use if API fails
-            
-        Returns:
-            Tuple of (latitude, longitude)
-        """
-        # Get API key dynamically to ensure .env is loaded
+        """Convert a place name to coordinates, with optional AI fallback."""
         api_key = os.getenv("GOOGLE_MAPS_API_KEY")
         
         if not api_key:
@@ -33,12 +22,11 @@ class GeocodingService:
         
         try:
             async with httpx.AsyncClient() as client:
-                # Use Geocoding API
                 url = "https://maps.googleapis.com/maps/api/geocode/json"
                 params = {
                     "address": place_name,
                     "key": api_key,
-                    "language": "zh-TW"  # Traditional Chinese
+                    "language": "zh-TW"
                 }
                 
                 response = await client.get(url, params=params, timeout=10.0)
@@ -76,16 +64,7 @@ class GeocodingService:
     
     @staticmethod
     async def geocode_itinerary_activities(itinerary_data: Dict) -> Dict:
-        """
-        Geocode all activities in an itinerary using Google Maps API.
-        Falls back to AI-generated coordinates if API fails.
-        
-        Args:
-            itinerary_data: The itinerary dictionary with days and activities
-            
-        Returns:
-            Updated itinerary with geocoded coordinates
-        """
+        """Geocode all activities in an itinerary, using AI coordinates as fallback."""
         if not itinerary_data.get("days"):
             return itinerary_data
         
@@ -100,14 +79,12 @@ class GeocodingService:
                 ai_lng = activity.get("lng")
                 
                 try:
-                    # Try to geocode the place name
                     lat, lng = await GeocodingService.geocode_place(
                         place_name,
                         fallback_lat=ai_lat,
                         fallback_lng=ai_lng
                     )
                     
-                    # Update activity with geocoded coordinates
                     activity["lat"] = lat
                     activity["lng"] = lng
                     

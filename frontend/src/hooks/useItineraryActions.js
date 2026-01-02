@@ -130,10 +130,7 @@ export function useItineraryActions() {
 
     const handleUpdateStartTime = (newTime) => {
         if (!currentItinerary) return;
-        // Start time logic might need adaptation for new schema if we moved start_time to Day model
-        // For now assume it is still in start_times dict or adapted
 
-        // If we want to use PATCH:
         const payload = {
             start_times: {
                 ...currentItinerary.start_times,
@@ -156,7 +153,6 @@ export function useItineraryActions() {
         const nextTransitDetails = result.transitDetails || [];
         const nextAlternatives = result.alternatives || [];
 
-        // Check if data actually changed to avoid infinite loop
         const dataChanged = !targetItem ||
             targetItem.duration !== result.duration.text ||
             targetItem.durationValue !== result.duration.value ||
@@ -182,27 +178,17 @@ export function useItineraryActions() {
     const handleUpdateDateRange = useCallback((newStartDate, newEndDate) => {
         if (!currentItinerary) return;
 
-        // Calculate days difference
         const dayCount = Math.ceil((newEndDate - newStartDate) / (1000 * 60 * 60 * 24)) + 1;
         const currentDays = currentItinerary.days || [];
 
-        // Create new Days array
-        // We preserve existing days up to the new count.
-        // If we have fewer days than before, they are truncated (activities lost for those days).
-        // If we have more, we append empty days.
-
         const newDays = Array.from({ length: dayCount }, (_, i) => {
             if (i < currentDays.length) {
-                // Keep existing day data (activities & id)
-                // We might want to update the 'date' field if it stores "Day X" or actual date string
-                // Based on models.py, 'date' is string. Let's ensure it stays consistent.
                 const existing = currentDays[i];
                 return {
                     ...existing,
-                    date: `Day ${i + 1}` // Enforce Day X format consistency
+                    date: `Day ${i + 1}`
                 };
             } else {
-                // New Day
                 return {
                     id: `day-${Date.now()}-${i}`,
                     date: `Day ${i + 1}`,
@@ -222,32 +208,21 @@ export function useItineraryActions() {
 
     }, [currentItinerary, patchItinerary, updateItinerary]);
 
-    const handleDirectionsError = useCallback(() => {
-        // UI will reflect that no data was found
-    }, []);
+    const handleDirectionsError = useCallback(() => { }, []);
 
     const handleReorderDays = useCallback((newDayOrder) => {
-        // newDayOrder is an array of IDs/Keys like ["Day 2", "Day 1", "Day 3"]
-        // corresponding to the desired order of content.
-
-        if (!currentItinerary || !currentItinerary.days) return;
+        if (!currentItinerary?.days) return;
 
         const currentDays = currentItinerary.days;
-
-        // Construct new days array based on the visual order
         const reorderedDays = newDayOrder.map((originalId, index) => {
-            // Find the original day object that was moved to this position
             const originalDay = currentDays.find(d => d.id === originalId || d.date === originalId);
-
             if (!originalDay) return null;
 
-            // Important: We aren't just moving the object, we are renaming it to the new position.
-            // e.g. The day object from "Day 2" is moved to index 0. It must become "Day 1".
             return {
                 ...originalDay,
-                date: `Day ${index + 1}` // Reset the date/label to match the new index
+                date: `Day ${index + 1}`
             };
-        }).filter(Boolean); // Safety filter
+        }).filter(Boolean);
 
         const payload = { days: reorderedDays };
 
@@ -259,7 +234,6 @@ export function useItineraryActions() {
     const handleMoveFromPocketToDay = useCallback((dayId, item) => {
         if (!currentItinerary) return;
 
-        // 1. Add to Day
         const currentDays = currentItinerary.days || [];
         const newItem = { ...item, id: `loc-${Date.now()}` };
         const updatedDays = currentDays.map(day => {
@@ -269,7 +243,6 @@ export function useItineraryActions() {
             return day;
         });
 
-        // 2. Remove from Pocket
         const updatedPocket = (currentItinerary.pocket_list || []).filter(i => i.id !== item.id);
 
         const payload = {
@@ -284,7 +257,6 @@ export function useItineraryActions() {
     const handleRemoveItem = useCallback((dayId, itemId) => {
         if (!currentItinerary) return;
 
-        // If dayId is 'pocket', we remove from pocket list
         if (dayId === 'pocket') {
             const updatedPocket = (currentItinerary.pocket_list || []).filter(item => item.id !== itemId);
             const payload = { pocket_list: updatedPocket };

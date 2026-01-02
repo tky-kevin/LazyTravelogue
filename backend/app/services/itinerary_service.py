@@ -44,10 +44,7 @@ class ItineraryService:
 
     @staticmethod
     async def update_full(itinerary_id: str, user_id: str, update_data: Itinerary) -> Itinerary:
-        # Backward compatibility for PUT
         db = get_database()
-        
-        # Verify existence
         await ItineraryService.get_one(itinerary_id, user_id)
         
         data = update_data.model_dump(exclude={"id", "user_id", "created_at", "updated_at"})
@@ -63,11 +60,8 @@ class ItineraryService:
     @staticmethod
     async def update_partial(itinerary_id: str, user_id: str, update_data: ItineraryUpdate) -> Itinerary:
         db = get_database()
-        
-        # Verify existence
         await ItineraryService.get_one(itinerary_id, user_id)
         
-        # Filter out None values
         data = update_data.model_dump(exclude_unset=True)
         if not data:
             return await ItineraryService.get_one(itinerary_id, user_id)
@@ -90,14 +84,12 @@ class ItineraryService:
     @staticmethod
     async def enable_sharing(itinerary_id: str, user_id: str, is_public: bool) -> Itinerary:
         db = get_database()
-        
-        # Verify ownership
         await ItineraryService.get_one(itinerary_id, user_id)
         
         update_fields = {"is_public": is_public, "updated_at": datetime.utcnow()}
         
         if is_public:
-            # Check if token already exists to avoid refreshing it unnecessarily
+            # Generate share token if missing
             existing = await db["itineraries"].find_one({"_id": ObjectId(itinerary_id)})
             if not existing.get("share_token"):
                 import secrets

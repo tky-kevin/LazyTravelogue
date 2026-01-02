@@ -2,9 +2,9 @@ name: Daily Travel Crawler
 
 on:
   schedule:
-    # 每天 UTC 時間 20:00 執行 (台灣時間 04:00)
+    # Daily at 20:00 UTC (04:00 Taipei time)
     - cron: '0 20 * * *'
-  workflow_dispatch: # 允許手動點擊按鈕觸發
+  workflow_dispatch:
 
 jobs:
   crawl:
@@ -26,21 +26,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        # 確保安裝 lxml
         pip install lxml
-        # 安裝 backend 自身作為 package 或是設定 python path
-        # 這裡簡單處理：直接安裝當前目錄作為依賴（如果有 setup.py）或者確保 PYTHONPATH
 
     - name: Run Crawler Script
       env:
-        # 這些 Secrets 需要在 GitHub Repo 的 Settings > Secrets and variables > Actions 設定
         MONGODB_URI: ${{ secrets.MONGODB_URI }}
         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       run: |
-        # 設定 PYTHONPATH 包含 backend 目錄，確保 app.services 能被 import
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        
-        # 執行爬蟲，每天爬取 20 篇「新」文章（跳過已爬過的）
-        # 優先爬取最新更新的文章，直到達到目標數量或全部爬完
         python run_full_crawl.py --max 5
